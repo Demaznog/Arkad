@@ -463,6 +463,10 @@ const P = {
   REBOND: 0.62,             // part de vitesse gardée au premier contact
   ARRET: 0.045,             // en deçà, elle est arrêtée
   CHOC: 0.88,               // restitution d'un choc entre boules
+  /* Combien de fois la vitesse de roulement vaut un contact pris en vol. Une
+     boule qui frappe avant de toucher le sol n'a pas encore été amortie : elle
+     cogne plus fort qu'elle ne roulerait. Valeur mesurée plus bas. */
+  CARREAU: 2.0,
   /* Le facteur qui convertit la puissance du bras en vitesse au sol. Il était
      écrit DEUX FOIS — dans la physique et dans le calcul de la machine — et
      j'en ai changé un seul en resserrant le roulement. La machine visait donc
@@ -470,6 +474,25 @@ const P = {
      Une seule constante, partagée : l'erreur ne peut plus se reproduire. */
   ELAN: 2.05
 };
+/* LA VITESSE AU SOL, EN UN SEUL ENDROIT.
+   On avait déjà partagé la constante ELAN après l'avoir changée d'un seul côté.
+   Mais la FORMULE, elle, restait écrite deux fois — dans la physique et dans le
+   calcul de la machine — et les deux copies ne disaient pas la même chose : la
+   physique tirait « tendu » de la portée réelle (portee/13), la machine de la
+   valeur de jauge (v1). Deux grandeurs différentes. Mesuré avant correction :
+   la machine envoyait 32 % de ses boules hors du terrain au niveau faible et
+   57 % au niveau expert — le meilleur niveau était le pire, parce qu'il
+   exécutait fidèlement un calcul faux au lieu de le noyer sous son bruit.
+   Une seule fonction, appelée des deux côtés : les deux ne peuvent plus
+   diverger, quoi qu'on retouche ensuite. */
+function cloraDe(force, portee){
+  return clamp(0.055 + (1 - force/(0.25+portee*0.095))*0.24, 0.035, 0.30);
+}
+function vitesseAuSol(force, portee){
+  const vertical = clamp((cloraDe(force,portee)-0.06)/0.16, 0, 1);  // 0 tendu, 1 plombé
+  const tendu    = clamp(portee/13, 0, 1);
+  return force * (0.55 + tendu*0.85) * P.REBOND * P.ELAN * (1 - vertical*0.96);
+}
 const TERRAINS = {
   lisse:  { nom:'Lisse',  bosse:0.004, frotte:0.42 },   // la boule file
   normal: { nom:'Normal', bosse:0.011, frotte:0.55 },
@@ -482,10 +505,23 @@ const TERRAINS = {
      « place » : viser à côté du bouchon plutôt que dessus, pour ne pas empiler
      « tactique » : savoir choisir entre appuyer, plomber et tirer */
 const NIVEAUX = {
-  faible: { visee:0.30, portee:0.26, force:0.22, tir:0.12, place:0.15, tactique:0.10 },
-  moyen:  { visee:0.15, portee:0.13, force:0.11, tir:0.34, place:0.45, tactique:0.40 },
-  fort:   { visee:0.055,portee:0.05, force:0.042,tir:0.58, place:0.75, tactique:0.72 },
-  expert: { visee:0.022,portee:0.02, force:0.016,tir:0.76, place:1.00, tactique:0.95 }
+/* « pointe » : la distance au bouchon que ce niveau obtient REELLEMENT en
+   pointant, mesurée sur près de deux cents mènes une fois la physique remise
+   d'aplomb. C'est elle qui permet à la machine de savoir si pointer suffirait
+   plutôt que de tirer à l'aveugle. Si l'on retouche le bruit d'un niveau, il
+   faut remesurer cette valeur : elle en est la conséquence. */
+/* « tir », « place » et « tactique » montaient fort avec le niveau : l'expert
+   tirait trois fois plus que le faible, se décalait toujours de sa cible et
+   plombait presque à chaque coup. Mesuré en confrontation directe, ces trois
+   traits lui COÛTENT : expert réglé comme fort gagnait, expert tel quel
+   perdait 13 à 1. Tirer dépense une boule pour en déplacer une ; se décaler
+   éloigne du bouchon ; plomber renonce au roulé qui corrige. L'escalade est
+   donc ramenée à une pente douce : ce qui sépare vraiment les niveaux est la
+   précision du geste, et elle seule. */
+  faible: { visee:0.30, portee:0.26, force:0.22, tir:0.10, place:0.30, tactique:0.15, pointe:0.86 },
+  moyen:  { visee:0.15, portee:0.13, force:0.11, tir:0.18, place:0.45, tactique:0.25, pointe:0.46 },
+  fort:   { visee:0.055,portee:0.05, force:0.042,tir:0.25, place:0.55, tactique:0.30, pointe:0.28 },
+  expert: { visee:0.022,portee:0.02, force:0.016,tir:0.30, place:0.60, tactique:0.35, pointe:0.25 }
 };
 const COULEURS = ['#4d8fe0','#e0533f','#5cc98a','#e8b84b','#b06fd8','#e8e2d4'];
 const NOMS_IA  = ['Marius','Fanny','César','Honorine','Panisse','Escartefigue'];
@@ -617,12 +653,20 @@ function majGeste(){
 function animerJauge(dt){
   const g=document.getElementById('geste');
   if (!g.classList.contains('on') || S.anime) return;
-  /* Une jauge qui balaie l'écran en une seconde ne se vise pas : on ne peut
-     que la stopper au jugé. Deux secondes et demie pour la direction, deux
-     pour la puissance — de quoi placer le curseur, sans que l'attente pèse.
-     La direction est la plus lente : c'est elle qui demande le plus de
-     précision, un degré d'écart valant trente centimètres à dix mètres. */
-  const vitesse = S.etape===0 ? 0.40 : (S.etape===1 ? 0.46 : 0.52);
+  /* LE TEMPO FAIT LA DIFFICULTÉ, et il était devenu trop clément.
+     À 0,40, mesuré sur cinq distances : un joueur qui arrête la jauge à trente
+     millisecondes près pose sa boule à 18 cm du bouchon — deux fois mieux que
+     la machine experte, qui fait 35 cm. Un joueur ordinaire, à soixante
+     millisecondes, faisait déjà jeu égal avec elle. Pointer n'était plus un
+     geste mais une formalité, et comme toutes les boules finissaient collées
+     au bouchon, il ne restait plus qu'à tirer pour que la mène avance.
+     À 0,70, la même mesure donne 32 cm pour le joueur précis — le niveau de
+     l'expert, atteignable mais mérité —, 64 cm pour le joueur ordinaire et
+     1,07 m pour l'approximatif. L'adresse redevient ce qui sépare les joueurs.
+     Les trois jauges gardent leur rapport : la direction reste la plus lente,
+     c'est elle qui demande le plus de précision — un degré vaut trente
+     centimètres à dix mètres. */
+  const vitesse = S.etape===0 ? 0.70 : (S.etape===1 ? 0.80 : 0.91);
   S.jauge += S.sens*dt*vitesse;
   if (S.jauge>1){ S.jauge=1; S.sens=-1; }
   if (S.jauge<0){ S.jauge=0; S.sens=1; }
@@ -738,14 +782,28 @@ function pas(dt){
          Une boule qui rase le sol — moins de vingt centimètres — heurte ce
          qu'elle rencontre, et de toute sa vitesse. C'est le geste le plus
          payant du jeu, et le plus dur à placer. */
-      if (b.haut < 0.20){
+      /* LE CARREAU NE SE JOUE QU'À LA DESCENTE.
+         La condition ne regardait que la hauteur — or au DÉCOLLAGE la boule
+         est au ras du sol par définition, et elle est encore sur le cercle de
+         lancer. Toute boule immobile près du cercle déclenchait donc un faux
+         carreau à bout portant dès le premier pas : la boule repartait au ras
+         du sol à six ou sept mètres par seconde, de quoi rouler trente mètres
+         sur un terrain qui en fait quinze, en emportant tout sur son passage.
+         Pire, le tireur s'arrêtait net sur place — au cercle —, où il amorçait
+         le faux carreau du lancer suivant. Mesuré : des boules à 13,9 m/s et
+         jusqu'à trois mortes d'un seul lancer.
+         On n'ouvre donc le carreau qu'une fois le sommet de la cloche passé. */
+      if (f > 0.55 && b.haut < 0.20){
         const cibles=S.boules.filter(o=>o!==b && !o.morte).concat(S.but?[S.but]:[]);
         for (const o of cibles){
           if (dist(b,o) < b.r+o.r+0.02){
-            /* On donne à la boule sa VRAIE vitesse d'arrivée avant le choc :
-               je la posais après avoir appelé « contact », qui ne transmettait
-               donc rien — la boule adverse ne bougeait que d'un centimètre. */
-            const vitesse = b.force * 7.4;
+            /* VITESSE D'ARRIVÉE. Elle valait « force × 7,4 », une échelle sans
+               rapport avec celle du roulement : la boule frappée repartait à
+               six mètres par seconde et quittait le terrain à coup sûr. On la
+               tire maintenant de la même physique que tout le reste — la
+               vitesse au sol de ce geste —, relevée parce qu'une boule qui
+               frappe en l'air n'a pas encore été freinée par le sol. */
+            const vitesse = vitesseAuSol(b.force, b.portee) * P.CARREAU;
             b.vx=b.volX*vitesse; b.vy=b.volY*vitesse;
             b.phase='roule'; b.haut=0;
             b.carreau=true;
@@ -797,9 +855,11 @@ function pas(dt){
         /* Calibrage mesuré : un tir tendu roulait quarante-trois mètres, ce qui
            n'a aucun sens sur un terrain de quinze. On ramène l'échelle pour que
            les gestes tiennent tous dans le terrain — de zéro pour la plombée à
-           trois ou quatre mètres pour la boule la plus roulante. */
-        const reste = b.force * (0.55 + tendu*0.85) * P.REBOND * P.ELAN
-                    * (1 - vertical*0.96);                     // la plombée s'éteint
+           trois ou quatre mètres pour la boule la plus roulante.
+           Le calcul lui-même vit dans « vitesseAuSol », que la machine appelle
+           aussi : c'est la seule façon qu'elle ne vise pas autre chose que ce
+           que le terrain fait réellement. */
+        const reste = vitesseAuSol(b.force, b.portee);
         b.vx = b.volX*reste; b.vy = b.volY*reste;
         b.tendu = tendu; b.vertical = vertical;
         if (vertical>0.55){
@@ -893,17 +953,29 @@ function contact(b){
        ne bougeait que de trois à sept centimètres au lieu de partir.
        Le but, bien plus léger, part beaucoup plus vite. */
     const masse = o.but ? 0.28 : 1;
-    /* La restitution ne peut pas dépasser un : une boule frappée ne repart
-       jamais plus vite que celle qui la percute. Ma correction précédente
-       divisait par la masse SANS borner, et une boule est partie à neuf mètres
-       d'un simple contact. */
-    const transmis = Math.min(vn * P.CHOC, vn);
-    o.vx=(o.vx||0)+nx*transmis/masse;
-    o.vy=(o.vy||0)+ny*transmis/masse;
+    /* CHOC ENTRE DEUX MASSES, ÉCRIT PROPREMENT.
+       L'ancienne version donnait à la cible « transmis / masse » et ne retirait
+       à la frappeuse que « transmis × masse ». Entre deux boules, masse vaut un
+       et les deux se compensent — c'est pourquoi le défaut est resté invisible.
+       Mais le bouchon pèse 0,28 : il recevait 3,14 fois la vitesse d'entrée
+       pendant que la frappeuse n'en perdait que 0,25. Chaque contact
+       multipliait donc l'énergie par 3,3, et un bouchon pris entre deux boules
+       s'emballait d'échange en échange. Mesuré en partie : des boules à
+       13,9 m/s pour un roulé qui en demande un, expédiées droit hors du
+       terrain — jusqu'à trois d'un seul lancer. C'est ce que l'on voyait à
+       table : la machine « perd toutes ses boules à la suite ».
+       On applique maintenant une impulsion unique, partagée selon les masses :
+       la quantité de mouvement se conserve et l'énergie ne peut que décroître,
+       quelle que soit la suite des contacts. Le bouchon part toujours plus vite
+       que la boule — une fois et demie —, ce qui garde le coup spectaculaire
+       sans le rendre explosif. */
+    const impulsion = (1 + P.CHOC) * vn * masse / (1 + masse);
+    o.vx=(o.vx||0)+nx*impulsion/masse;
+    o.vy=(o.vy||0)+ny*impulsion/masse;
     if (o.but || o.phase==='arret') o.phase='roule';
-    /* la frappeuse perd ce qu'elle a donné : elle s'arrête presque net sur une
-       boule prise de plein fouet — c'est exactement ce qu'on appelle un carreau */
-    b.vx-=nx*transmis*masse; b.vy-=ny*transmis*masse;
+    /* la frappeuse perd exactement ce qu'elle a donné : elle s'arrête presque
+       net sur une boule prise de plein fouet — c'est le carreau */
+    b.vx-=nx*impulsion; b.vy-=ny*impulsion;
   }
 }
 
@@ -1011,7 +1083,37 @@ function jouerMachine(i){
   const menace = m!==null && m!==s.camp;
   const meilleure = S.boules.filter(b=>!b.morte && b.camp!==s.camp)
                             .map(b=>({b,d:dist(b,S.but)})).sort((a,b)=>a.d-b.d)[0];
-  const tire = menace && meilleure && meilleure.d<0.6 && Math.random()<n.tir;
+  /* TIRER OU POINTER — l'arbitrage, et non plus un simple tirage au sort.
+     L'ancienne règle tenait en une ligne : l'adversaire tient le point de
+     moins de soixante centimètres, un dé passe, on tire. Elle ne regardait
+     ni le nombre de boules restantes, ni ce qu'un pointage aurait rapporté.
+     Mesuré : 36 à 41 % de tirs aux niveaux hauts, jusqu'à HUIT d'affilée dans
+     la même mène, 21 % d'entre eux joués avec la dernière boule et 16 % alors
+     que l'adversaire n'avait plus rien à jouer — c'est-à-dire au moment précis
+     où il ne faut pas tirer, puisque chaque boule mieux placée vaut un point
+     de plus et que plus personne ne peut répondre.
+     Un joueur se pose trois questions avant de tirer. Les voici. */
+  const resteMoi = restantes(s.camp), resteAdv = restantes(1-s.camp);
+  let tire = false;
+  if (menace && meilleure){
+    const dAdv = meilleure.d;
+    /* 1. Pointer suffirait-il ? On compare à ce que l'on sait faire — « pointe »
+       est la distance au bouchon que ce niveau obtient réellement, mesurée.
+       La marge d'un quart évite de préférer le pointage à l'épaisseur du trait. */
+    const pointerSuffit = n.pointe * 1.25 < dAdv;
+    /* 2. L'adversaire a-t-il encore des boules ? S'il n'en a plus, on ne tire
+       pas : on pose, et chaque boule placée devant la sienne marque. */
+    const advADesBoules = resteAdv > 0;
+    /* 3. Est-ce ma dernière ? On ne gâche pas sa dernière boule sur un tir
+       quand un pointage peut encore reprendre le point. */
+    const gacheLaDerniere = resteMoi <= 1 && n.pointe < dAdv;
+    tire = !pointerSuffit && advADesBoules && !gacheLaDerniere
+           && dAdv < 1.0 && Math.random() < n.tir;
+  }
+  /* On garde trace de l'intention : sans elle, on ne peut juger le jeu de la
+     machine qu'en devinant le geste d'après sa puissance, et un pointage long
+     se confond alors avec un tir. Un seul champ, écrit à chaque coup. */
+  S.intention = tire ? 'tir' : 'pointe';
 
   /* OÙ POSER SA BOULE. Viser le bouchon lui-même conduit à empiler toutes ses
      boules au même endroit — mesuré : vingt-cinq centimètres d'écart moyen
@@ -1023,11 +1125,27 @@ function jouerMachine(i){
   if (!tire && n.place>0){
     const occupe=(x,y)=> S.boules.some(o=>!o.morte && Math.hypot(o.x-x,o.y-y)<0.42);
     const versMoi=Math.atan2(S.but.x-S.cercle.x, S.but.y-S.cercle.y);
-    /* on essaie plusieurs places, de la plus payante à la moins : devant le
-       bouchon côté joueur, puis les deux flancs, puis derrière */
-    const places=[
-      [-0.30, 0], [0, -0.32], [0, 0.32], [-0.30, -0.34], [-0.30, 0.34], [0.34, 0]
-    ];
+    /* LE DEVANT DE BOULE. Quand on tient déjà le point, se rapprocher encore
+       ne rapporte rien : la boule la plus proche est déjà à nous. Ce qui
+       rapporte, c'est de FERMER la voie — poser la boule juste devant le
+       bouchon, sur la ligne par où l'adversaire doit arriver, pour qu'il ne
+       puisse plus rouler jusqu'au point. C'est le coup que la machine ne
+       jouait jamais : elle cherchait toujours la place libre la plus proche,
+       quel que soit l'état de la mène.
+       Quand on ne tient PAS le point, l'ordre reste l'ancien : on cherche
+       d'abord à se placer, le devant n'est qu'une option parmi d'autres. */
+    const jeTiens = (m === s.camp);
+    /* LA PREMIÈRE PLACE EST LE BOUCHON LUI-MÊME quand on ne tient pas le point.
+       La liste commençait trente centimètres devant lui : la machine ne visait
+       donc JAMAIS le bouchon, même terrain vide. Le défaut restait caché au
+       niveau fort, dont le bruit ramenait parfois la boule au bon endroit,
+       mais il frappait de plein fouet l'expert, qui suit la consigne à la
+       lettre — et l'expert perdait 12 à 0 contre fort, l'échelle à l'envers.
+       Quand on tient déjà le point, en revanche, le bouchon ne vaut plus rien :
+       on ferme la voie, et la liste commence bien par le devant. */
+    const places = jeTiens
+      ? [[-0.24, 0], [-0.26, -0.20], [-0.26, 0.20], [-0.34, 0], [0, -0.32], [0, 0.32]]
+      : [[0, 0], [-0.30, 0], [0, -0.32], [0, 0.32], [-0.30, -0.34], [-0.30, 0.34], [0.34, 0]];
     for (const [av, lat] of places){
       const px=S.but.x + Math.sin(versMoi)*av + Math.cos(versMoi)*lat;
       const py=S.but.y + Math.cos(versMoi)*av - Math.sin(versMoi)*lat;
@@ -1051,9 +1169,26 @@ function jouerMachine(i){
   const T2=TERRAINS[S.terrain];
   let v1, v2;
   if (tire){
-    /* on frappe : la boule tombe SUR la cible, presque sans rouler */
+    /* ON FRAPPE. L'ancienne puissance était posée au juger — 0,62 + 0,028·d —
+       et elle envoyait la boule beaucoup trop fort : mesuré, elle arrivait sur
+       la cible avec de quoi rouler encore 2,50 m sur un terrain large de 4,50.
+       Résultat, 94 % des tirs tuaient la boule du tireur, qui ressortait du
+       terrain juste après le contact, en emportant souvent la cible avec elle.
+       C'est ce que l'on voyait à table : la machine « perd toutes ses boules
+       à la suite ».
+       Le choc transmet presque tout (CHOC = 0,88) : il suffit donc d'arriver
+       avec de quoi chasser la boule adverse d'un bon mètre. Au-delà, on ne
+       frappe pas mieux — on se sort du jeu. On vise un roulé d'arrivée de
+       1,25 m et on cherche la force correspondante sur la physique elle-même. */
     v1 = clamp((d-2)/11, 0, 1);
-    v2 = clamp(0.62+d*0.028, 0, 1);
+    const porteeT = 2 + v1*11;
+    const vVoulue = Math.sqrt(2*T2.frotte*1.25);
+    let bt = 0.25, ht = 1.40;
+    for (let it = 0; it < 22; it++){
+      const mi = (bt + ht) / 2;
+      if (vitesseAuSol(mi, porteeT) < vVoulue) bt = mi; else ht = mi;
+    }
+    v2 = clamp(((bt + ht) / 2 - 0.25) / 1.15, 0, 1);
   } else {
     /* CHOISIR SON GESTE. Un bon joueur ne pointe pas toujours de la même façon :
        si la place est encombrée devant, il PLOMBE — la boule tombe haut et
@@ -1075,24 +1210,50 @@ function jouerMachine(i){
       lancerBoule(i, g);
       return;
     }
-    /* on pointe : la boule se pose aux deux tiers puis roule jusqu'au but */
-    const chute = d*0.62;
-    const roule = d-chute;
-    v1 = clamp((chute-2)/11, 0, 1);
-    const vSol = Math.sqrt(Math.max(0.01, 2*T2.frotte*roule));
-    const tendu = clamp(v1, 0, 1);
-    /* On résout en DEUX PASSES. La verticalité du vol freine la boule, mais
-       elle dépend elle-même de la force qu'on cherche : une première estimation
-       donne la cloche, la seconde corrige. Sans cela la machine tombait
-       systématiquement court — d'un quart de mètre à cinq mètres, et de plus
-       d'un mètre à dix. */
-    let force = vSol / ((0.55+tendu*0.85) * P.REBOND * P.ELAN);
-    for (let it=0; it<3; it++){
-      const cl = clamp(0.055 + (1 - force/(0.25+chute*0.095))*0.24, 0.035, 0.30);
-      const vert = clamp((cl-0.06)/0.16, 0, 1);
-      force = vSol / ((0.55+tendu*0.85) * P.REBOND * P.ELAN * Math.max(0.08, 1-vert*0.96));
+    /* POINTER : on choisit ENSEMBLE le point de chute et la force.
+       L'ancienne méthode imposait de poser la boule à 62 % de la distance puis
+       de rouler les 38 % restants. Mesuré : ce roulé-là dépasse ce que le bras
+       peut donner — à douze mètres il faut 2,24 m/s au sol quand le maximum
+       atteignable est 1,84. La force saturait donc à son plafond de 1,400 à
+       TOUTE distance, et la boule tombait court de 7 cm à quatre mètres et de
+       1,48 m à douze. Ce n'était pas une formule fausse mais un geste
+       impossible : aucun réglage de la formule ne pouvait le rattraper.
+       Un pointeur fait l'inverse — il choisit où poser pour que le roulé lui
+       reste accessible. On balaie donc les points de chute et l'on garde celui
+       qui arrive juste, en préférant les forces de milieu de plage : près des
+       bornes, le bruit du niveau n'a plus de place pour jouer des deux côtés. */
+    const forcePour = (portee, vCible) => {       // dichotomie sur la physique
+      let bas = 0.25, haut = 1.40;
+      for (let it = 0; it < 22; it++){
+        const mi = (bas + haut) / 2;
+        if (vitesseAuSol(mi, portee) < vCible) bas = mi; else haut = mi;
+      }
+      return (bas + haut) / 2;
+    };
+    let meilleur = null;
+    for (let k = 0; k <= 48; k++){
+      const vTest = k / 48;
+      const portee = 2 + vTest*11;
+      const roule  = d - portee;
+      if (roule < 0.04) continue;                 // la boule doit rouler un peu
+      const vCible = Math.sqrt(Math.max(0.0001, 2*T2.frotte*roule));
+      const f = forcePour(portee, vCible);
+      /* où la boule finit VRAIMENT avec cette force-là */
+      const atteint = portee + vitesseAuSol(f, portee)**2 / (2*T2.frotte);
+      const erreur  = Math.abs(atteint - d);
+      /* pénalité de robustesse : une force collée à 0,25 ou 1,40 ne supporte
+         pas le bruit, elle ne peut plus être corrigée que d'un côté */
+      const marge = Math.min(f - 0.25, 1.40 - f);
+      const note  = erreur + Math.max(0, 0.28 - marge) * 0.9;
+      if (!meilleur || note < meilleur.note) meilleur = { vTest, f, note, erreur };
     }
-    v2 = clamp((force-0.25)/1.15, 0, 1);
+    if (meilleur){
+      v1 = meilleur.vTest;
+      v2 = clamp((meilleur.f - 0.25) / 1.15, 0, 1);
+    } else {
+      /* distance plus courte que la portée minimale : on pose au plus près */
+      v1 = 0; v2 = clamp((forcePour(2, 0.05) - 0.25) / 1.15, 0, 1);
+    }
   }
   v1 += (Math.random()-0.5)*n.portee;
   v2 += (Math.random()-0.5)*n.force;
