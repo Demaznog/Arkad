@@ -1,0 +1,603 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#070b18"><title>BANK</title><style>
+:root{--bg:#070b18;--panel:rgba(12,18,39,.88);--ink:#f7fbff;--muted:#91a1c4;--cyan:#35e7ff;--violet:#8e64ff;--gold:#ffd45c;--danger:#ff557d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 15%,#15234b 0,#070b18 58%,#02040a 100%);color:var(--ink);font-family:system-ui,-apple-system,sans-serif;touch-action:none;user-select:none}canvas{position:fixed;inset:0;width:100%;height:100%}.hud{position:fixed;top:0;left:0;right:0;z-index:3;padding:calc(env(safe-area-inset-top) + 10px) 12px 0;display:flex;gap:8px;pointer-events:none}.pill{background:rgba(6,10,24,.72);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);border-radius:16px;padding:8px 12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}.grow{flex:1}.label{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}.value{font-weight:900;font-size:19px}.layer{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;padding:18px;background:radial-gradient(circle at 50% 15%,rgba(34,56,112,.96),rgba(3,6,15,.98) 68%)}.layer.on{display:flex}.card{width:min(420px,100%);padding:26px 22px;border:1px solid rgba(255,255,255,.14);border-radius:28px;background:linear-gradient(160deg,rgba(22,31,65,.94),rgba(7,10,25,.96));box-shadow:0 28px 80px rgba(0,0,0,.55);text-align:center}h1{font-size:clamp(38px,12vw,62px);letter-spacing:.01em;/* le titre débordait de la carte depuis l ajout du sélecteur */margin:0;line-height:.9;letter-spacing:.04em;background:linear-gradient(180deg,#fff,#6ff1ff 48%,#8e64ff);-webkit-background-clip:text;color:transparent;filter:drop-shadow(0 8px 18px rgba(53,231,255,.22))}.sub{color:var(--muted);line-height:1.5;margin:14px 0 22px}button{width:100%;border:0;border-radius:16px;padding:16px;font-weight:900;font-size:18px;letter-spacing:.08em;text-transform:uppercase;color:#07101b;background:linear-gradient(135deg,var(--cyan),#6cf5b3);box-shadow:0 6px 0 #167a86,0 14px 30px rgba(53,231,255,.2);margin-top:10px}button:active{transform:translateY(4px);box-shadow:0 2px 0 #167a86}button.alt{background:rgba(255,255,255,.07);color:#dfe8ff;box-shadow:none;border:1px solid rgba(255,255,255,.12);font-size:14px}.niv{flex:1;padding:11px 2px;margin:0;font-size:11px;letter-spacing:.08em;border-radius:12px;
+  background:rgba(255,255,255,.07);color:#b9c7e9;border:1px solid rgba(255,255,255,.12);
+  box-shadow:none;font-weight:800}
+.niv.on{background:linear-gradient(135deg,var(--cyan),#6cf5b3);color:#07101b;border-color:transparent}
+.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:18px}.lvl{padding:12px 4px;border-radius:13px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-weight:800;cursor:pointer}.lvl.lock{opacity:.28}.stars{color:var(--gold);font-size:12px}#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:3;text-align:center;color:#b9c7e9;font-size:12px;letter-spacing:.08em;text-transform:uppercase;pointer-events:none;text-shadow:0 2px 8px #000}#quit{position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 62px);z-index:9;
+  width:46px;height:46px;border-radius:50%;display:none;align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,.5);background:rgba(6,10,24,.88);color:#dfe8ff;
+  font-size:21px;line-height:1;padding:0;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.5)}
+#quit.on{display:flex}
+#toast{position:fixed;left:50%;top:24%;transform:translate(-50%,-10px) scale(.9);opacity:0;z-index:6;font-size:34px;font-weight:1000;letter-spacing:.05em;text-shadow:0 6px 22px #000;transition:.22s}#toast.on{opacity:1;transform:translate(-50%,0) scale(1)}
+
+  .reglesLangue{display:flex;gap:6px;margin:0 0 14px}
+  .reglesLangue .lg{flex:1;padding:9px 4px;border:1px solid rgba(255,255,255,.13);
+    border-radius:10px;background:rgba(255,255,255,.05);color:#a9b8a9;cursor:pointer;
+    font-family:var(--display,system-ui);font-size:11.5px;letter-spacing:.14em;
+    text-transform:uppercase}
+  .reglesLangue .lg.on{background:rgba(255,255,255,.9);color:#141a12;border-color:transparent}
+  .reglesListe{margin:0;padding:0 0 0 22px;text-align:left;font-size:13.5px;line-height:1.6}
+  .reglesListe li{margin-bottom:9px;color:#d6ded2}
+  .reglesListe li::marker{color:rgba(255,255,255,.4);font-size:11px}
+</style></head><body><canvas id="c"></canvas><div class="hud"><div class="pill grow"><div class="label">Trou · Par</div><div class="value"><span id="levelTxt">1</span><span style="color:#6cf5b3"> · par <span id="parTxt">2</span></span></div></div><div class="pill"><div class="label">Tirs restants</div><div class="value" id="shotsTxt">12</div></div><div class="pill"><div class="label">Coups</div><div class="value" id="bounceTxt">0</div></div></div><div id="hint">Glisse depuis la balle pour viser · la puissance est fixe</div><button id="quit" title="Quitter">✕</button><div id="toast"></div>
+<div class="layer on" id="menu"><div class="card"><h1>BANK</h1><p class="sub">Bank it off the walls.<br>La puissance est fixe : tu ne choisis que l'angle.<br>Chaque trou a son par, comme au golf.</p><div style="display:flex;gap:6px;margin-bottom:4px" id="segNiv">
+      <button class="niv" data-v="faible">Faible</button>
+      <button class="niv" data-v="moyen">Moyen</button>
+      <button class="niv" data-v="fort">Fort</button>
+      <button class="niv" data-v="expert">Expert</button>
+    </div>
+    <button id="play">Jouer</button>
+    <button class="alt" id="ouvrirRegles">Règles · Rules</button></div></div>
+<div class="layer" id="win"><div class="card"><h2 id="result">Cible atteinte</h2><div style="font-size:36px;color:var(--gold)" id="resultStars">★★★</div><p class="sub" id="resultText"></p><button id="next">Niveau suivant</button><button class="alt" id="retry">Rejouer</button><button class="alt" id="home">Menu</button></div></div>
+
+<div class="layer" id="regles"><div class="card">
+  <h2 style="margin:0 0 14px">BANK</h2>
+  <div class="reglesLangue"><button class="lg on" data-lg="fr">Français</button><button class="lg" data-lg="en">English</button></div><ol class="reglesListe" data-lg="fr"><li>Une balle, une cible. La puissance est fixe : seul l'angle compte.</li><li>La balle rebondit sur les murs : sers-t'en pour atteindre la cible.</li><li>Glisse depuis la balle vers l'arrière : tu ne règles que l'angle.</li><li>Les deux premiers rebonds s'affichent pendant que tu vises.</li><li>Les mines orange repoussent la balle et la relancent. À partir du niveau Moyen.</li>
+    <li>Chaque trou a son par, comme au golf. Il s'annonce à l'arrivée.</li><li>Sous le par tu gagnes des tirs ; au-dessus tu en perds. Et chaque trou coûte un tir d'entrée.</li><li>À court de tirs, la partie s'arrête. Ton score est le nombre de trous franchis.</li><li>Les parcours sont différents à chaque partie — rien ne s'apprend par cœur.</li><li>Quatre niveaux : plus de murs, moins de tirs en réserve.</li></ol><ol class="reglesListe" data-lg="en" hidden><li>One ball, one target. Power is fixed — only the angle matters.</li><li>The ball bounces off the walls — use them to reach the target.</li><li>Drag back from the ball: you only set the angle.</li><li>The first two bounces are shown while you aim.</li><li>Orange mines push the ball away and speed it up. From Medium level up.</li>
+    <li>Every hole has a par, like in golf. It's announced when you arrive.</li><li>Under par you gain shots, over par you lose them — and every hole costs one shot to enter.</li><li>Run out of shots and the round ends. Your score is how many holes you cleared.</li><li>Courses are different every round — nothing can be memorised.</li><li>Four levels: more walls, fewer shots in the bank.</li></ol>
+  <button class="alt" id="fermerRegles">OK</button>
+</div></div>
+
+<script>
+'use strict';let pret=false;const cv=document.getElementById('c'),x=cv.getContext('2d');let W=0,H=0,D=1;function resize(){W=innerWidth;H=innerHeight;D=Math.min(devicePixelRatio||1,2);cv.width=W*D;cv.height=H*D;x.setTransform(D,0,0,D,0,0);
+/* Sans cette relance, tourner le téléphone laissait murs et cible à leurs
+   anciennes coordonnées, hors de la nouvelle aire de jeu. */
+if(pret)init(li)}
+addEventListener('resize',()=>setTimeout(resize,60));resize();
+const levels=[
+{ball:[.18,.82],target:[.82,.2],walls:[[.28,.24,.04,.55],[.55,.18,.04,.55]],par:1,max:3},
+{ball:[.15,.75],target:[.83,.28],walls:[[.32,.12,.04,.58],[.58,.34,.04,.58]],par:1,max:3},
+{ball:[.18,.2],target:[.82,.78],walls:[[.28,.38,.44,.04],[.48,.58,.04,.3]],par:2,max:4},
+{ball:[.5,.82],target:[.5,.16],walls:[[.18,.32,.5,.04],[.32,.58,.5,.04]],par:2,max:4},
+{ball:[.15,.5],target:[.85,.5],walls:[[.34,.18,.04,.42],[.62,.4,.04,.42]],par:2,max:4},
+{ball:[.2,.8],target:[.8,.18],walls:[[.18,.38,.38,.04],[.44,.58,.38,.04],[.48,.2,.04,.22]],par:2,max:4},
+{ball:[.12,.22],target:[.88,.78],walls:[[.28,.18,.04,.5],[.52,.32,.04,.5],[.76,.18,.04,.5]],par:3,max:5},
+{ball:[.5,.82],target:[.5,.18],walls:[[.18,.28,.28,.04],[.54,.28,.28,.04],[.36,.52,.28,.04],[.54,.7,.28,.04]],par:3,max:5},
+{ball:[.16,.78],target:[.84,.2],walls:[[.25,.16,.04,.45],[.25,.7,.45,.04],[.66,.35,.04,.38]],par:3,max:5},
+{ball:[.12,.5],target:[.88,.5],walls:[[.24,.18,.04,.28],[.24,.55,.04,.28],[.48,.34,.04,.32],[.72,.18,.04,.28],[.72,.55,.04,.28]],par:3,max:5},
+{ball:[.5,.82],target:[.5,.14],walls:[[.12,.24,.34,.04],[.54,.24,.34,.04],[.28,.44,.44,.04],[.12,.64,.34,.04],[.54,.64,.34,.04]],par:4,max:6},
+{ball:[.12,.84],target:[.88,.16],walls:[[.18,.18,.04,.5],[.36,.42,.04,.5],[.54,.18,.04,.5],[.72,.42,.04,.5]],par:4,max:6}];
+/* ============================================================================
+   PARCOURS ENGENDRÉS.
+   Douze niveaux écrits à la main, c'est vingt minutes de jeu : une fois les
+   solutions connues, on ne revient pas. Chaque manche fabrique donc son propre
+   parcours, à partir d'une graine, et l'on VÉRIFIE qu'il est jouable avant de
+   le proposer — un parcours impossible serait pire que pas de parcours du tout.
+   La difficulté est donnée par le nombre de murs, pas par leur dessin.
+   ============================================================================ */
+/* QUATRE NIVEAUX. Ce qui change : le nombre de murs — donc la difficulté des
+   trous —, la réserve de départ, et la marge tolérée. Un débutant a de quoi se
+   tromper ; un expert part avec le strict nécessaire sur des parcours fermés. */
+/* LES REBONDS SONT COMPTÉS. La balle parcourait deux fois la diagonale du
+   terrain avant de s'arrêter, avec huit à vingt rebonds pour un tir gagnant :
+   elle balayait tout et finissait par croiser la cible sans qu'on l'ait visée.
+   Un par 4 en Expert se résolvait ainsi du premier coup.
+   Chaque niveau accorde donc un nombre de rebonds : au-delà, la balle s'éteint.
+   C'est ce qui oblige à viser au lieu d'espérer. */
+const NIVEAUX={
+  /* « rest » : ce que la balle garde à chaque rebond. Plus le niveau est haut,
+     plus elle s'essouffle vite — elle porte moins loin, donc il faut viser
+     juste du premier coup au lieu de compter sur un long ricochet.
+     « parMax » : le nombre de coups accordés. IL DIMINUE avec le niveau —
+     c'était l'inverse, et c'était absurde : l'Expert avait droit à quatre coups
+     là où le débutant n'en avait qu'un. Plus on est fort, moins on a de coups. */
+  faible: { nom:'Faible', mursDeb:1, mursFin:3, reserve:22, cadence:5, rest:0.97, parMax:4, mines:0 },
+  moyen:  { nom:'Moyen',  mursDeb:2, mursFin:5, reserve:18, cadence:4, rest:0.93, parMax:3, mines:1 },
+  fort:   { nom:'Fort',   mursDeb:3, mursFin:7, reserve:15, cadence:3, rest:0.88, parMax:2, mines:2 },
+  expert: { nom:'Expert', mursDeb:4, mursFin:9, reserve:12, cadence:2, rest:0.83, parMax:2, mines:3 }
+};
+function restitution(){ return NIVEAUX[niveau].rest; }
+/* angles gagnants nécessaires pour valoir un par 1, 2 ou 3 */
+/* Seuils recalés par mesure : à [12,5,2] l'Expert affichait encore treize par 1
+   sur trente. Un par 1 doit y rester rare — il signifie « un tir suffit », ce
+   qui ne devrait arriver que sur un parcours vraiment ouvert. */
+const SEUILS={ faible:[14,7,3], moyen:[18,9,4], fort:[24,12,5], expert:[32,16,7] };
+let niveau='moyen';
+function alea(g){ return function(){ g=(g*1664525+1013904223)>>>0; return g/4294967296; }; }
+
+function fabriquerNiveau(rang, graine){
+  const r=alea(graine*7919+rang*104729+13);
+  const N=NIVEAUX[niveau];
+  const nMurs=Math.min(N.mursFin, N.mursDeb+Math.floor(rang/N.cadence));
+  const murs=[];
+  for (let k=0;k<nMurs;k++){
+    const vertical = r()<0.5;
+    if (vertical) murs.push([0.16+r()*0.68, 0.12+r()*0.42, 0.035, 0.24+r()*0.34]);
+    else          murs.push([0.12+r()*0.42, 0.16+r()*0.66, 0.24+r()*0.34, 0.035]);
+  }
+  /* balle et cible aux extrémités opposées, jamais dans un mur */
+  const coins=[[0.14,0.84,0.86,0.16],[0.86,0.84,0.14,0.16],
+               [0.14,0.16,0.86,0.84],[0.5,0.86,0.5,0.14]];
+  const c=coins[Math.floor(r()*coins.length)];
+  const libre=(px,py)=> !murs.some(m=>px>m[0]-0.07&&px<m[0]+m[2]+0.07&&
+                                       py>m[1]-0.07&&py<m[1]+m[3]+0.07);
+  let bx=c[0], by=c[1], tx=c[2], ty=c[3], garde=0;
+  while ((!libre(bx,by)||!libre(tx,ty)) && garde++<40){
+    bx=0.1+r()*0.8; by=0.6+r()*0.3; tx=0.1+r()*0.8; ty=0.1+r()*0.3;
+  }
+  /* LES MINES. Un répulseur radial : la balle qui touche une mine repart dans
+     l'axe qui la sépare de son centre, avec un peu plus d'élan. C'est un choc
+     PARFAITEMENT DÉTERMINISTE — condition sine qua non, puisque toute la
+     visée du jeu repose sur une prévision exacte. Une mine « qui explose au
+     hasard » aurait ramené le jeu au tâtonnement. */
+  /* Les mines sont posées PLUS TARD, une fois le parcours connu : on les met
+     là où passent les tirs gagnants, pas au hasard dans une zone. Voir
+     « poserMines » plus bas. */
+  const mines=[];
+  return { ball:[bx,by], target:[tx,ty], walls:murs, mines,
+           par:Math.min(4, 1+Math.floor(rang/4)), max:99 };
+}
+
+let unlocked=+localStorage.getItem('bank.unlocked')||1,stars=JSON.parse(localStorage.getItem('bank.stars')||'{}');/* LA RÉSERVE. Le compteur de tirs ne servait à rien : le dépasser relançait le
+   même niveau, indéfiniment. Réussir en un coup ou en cinq menait au même
+   écran. Le joueur n'avait donc jamais rien à perdre.
+   Désormais les tirs sont une RESSOURCE COMMUNE à toute la partie : on démarre
+   avec douze, chaque tir en coûte un, et chaque cible atteinte en rend d'autant
+   plus qu'on a tiré moins. Bien viser ne rapporte plus une étoile décorative :
+   ça prolonge la partie. À court de tirs, tout s'arrête et l'on recommence. */
+const RENDU=[5,4,3,2,1];
+let reserve=12, record=+localStorage.getItem('bank.record')||0;
+/* Le score cumulé, en langage de golf : négatif, c'est bien. */
+let scoreTotal=0;
+let gagne=false;
+let li=0,ball,target,walls,mines=[],shots=0,bounces=0,niveauCourant=null,graine=Math.floor(Math.random()*1e9),drag=false,aim=null,moving=false,trail=[],particles=[];/* « top » est une propriété native de la fenêtre : la déclarer en const lève
+   « Identifier 'top' has already been declared » et le script entier ne
+   s'exécute pas. Le jeu ne démarrait donc jamais. */
+const margin=24,hautHUD=82,bottom=54;
+/* PUISSANCE FIXE. Elle était cachée dans la longueur du glissé : invisible,
+   donc incomprise — et elle rendait le par FAUX, puisqu'il était mesuré à
+   820 px/s alors qu'on tirait entre 180 et 1520.
+   Le glissé ne règle plus que la DIRECTION, comme le disait le concept
+   d'origine. Un seul paramètre, une prévision exacte, un par juste. */
+const VITESSE=1120;
+const PAS=1/120;   /* pas de temps fixe, partagé par le jeu et la prévision */   /* la balle claque */function area(){return{x:margin,y:hautHUD,w:W-margin*2,h:H-hautHUD-bottom}}function map(p){const a=area();return{x:a.x+p[0]*a.w,y:a.y+p[1]*a.h}}/* POSER LES MINES LÀ OÙ ELLES GÊNENT.
+   Semées au hasard dans une zone, une mine sur trois n'était jamais rencontrée
+   — et trois parcours sur vingt-cinq n'en avaient aucune d'utile. Une mine que
+   la balle ne croise pas ne corse rien.
+   On procède donc à l'envers : on relève d'abord TOUS les chemins gagnants du
+   parcours, puis on pose chaque mine sur le plus fréquenté d'entre eux, à
+   distance des précédentes. Chaque mine ferme ainsi une solution — c'est
+   exactement ce qui rend le trou plus dur, et de façon mesurable. */
+function poserMines(L, nM, r){
+  if (!nM) return [];
+  const a=area();
+  const b0={...mapAvec(L.ball,a), r:14}, t0={...mapAvec(L.target,a), r:23};
+  const ws=L.walls.map(q=>({x:a.x+q[0]*a.w,y:a.y+q[1]*a.h,w:q[2]*a.w,h:q[3]*a.h}));
+  const rest=restitution();
+  /* on récolte les points de passage de chaque trajectoire gagnante */
+  const passages=[];
+  for (let k=0;k<96;k++){
+    const ang=k/96*6.283;
+    const b={x:b0.x,y:b0.y,vx:Math.cos(ang)*VITESSE,vy:Math.sin(ang)*VITESSE,r:14};
+    const chemin=[];
+    let gagne2=false;
+    for (let i=0;i<2200;i++){
+      const trajet=Math.hypot(b.vx,b.vy)*PAS;
+      const nS=Math.max(1,Math.ceil(trajet/(b.r*0.6)));
+      for (let sub=0;sub<nS;sub++){
+        b.x+=b.vx*PAS/nS; b.y+=b.vy*PAS/nS;
+        for (const w of ws){
+          const nx=Math.max(w.x,Math.min(b.x,w.x+w.w)), ny=Math.max(w.y,Math.min(b.y,w.y+w.h));
+          const dx=b.x-nx, dy=b.y-ny;
+          if (dx*dx+dy*dy>b.r*b.r) continue;
+          if (Math.abs(dx)>Math.abs(dy)){ b.vx*=-1; b.x=dx>0?w.x+w.w+b.r:w.x-b.r; }
+          else { b.vy*=-1; b.y=dy>0?w.y+w.h+b.r:w.y-b.r; }
+          b.vx*=rest; b.vy*=rest;
+        }
+        if (Math.hypot(b.x-t0.x,b.y-t0.y)<b.r+t0.r){ gagne2=true; i=99999; break; }
+      }
+      if (gagne2) break;
+      let cogne=false;
+      if (b.x-b.r<a.x){ b.x=a.x+b.r; b.vx=Math.abs(b.vx); cogne=true; }
+      if (b.x+b.r>a.x+a.w){ b.x=a.x+a.w-b.r; b.vx=-Math.abs(b.vx); cogne=true; }
+      if (b.y-b.r<a.y){ b.y=a.y+b.r; b.vy=Math.abs(b.vy); cogne=true; }
+      if (b.y+b.r>a.y+a.h){ b.y=a.y+a.h-b.r; b.vy=-Math.abs(b.vy); cogne=true; }
+      if (cogne){ b.vx*=rest; b.vy*=rest; }
+      b.vx*=Math.pow(.988,PAS*60); b.vy*=Math.pow(.988,PAS*60);
+      if (Math.hypot(b.vx,b.vy)<26) break;
+      if (i%9===0) chemin.push({x:b.x, y:b.y});
+    }
+    if (gagne2) passages.push(...chemin);
+  }
+  if (passages.length<6) return [];        /* trop peu de solutions : pas de mine */
+
+  /* on découpe le terrain en cases et l'on compte les passages : les cases les
+     plus fréquentées sont les carrefours du parcours */
+  const CASE=34, grille=new Map();
+  passages.forEach(q=>{
+    const c=Math.floor((q.x-a.x)/CASE)+','+Math.floor((q.y-a.y)/CASE);
+    const g=grille.get(c)||{n:0,x:0,y:0};
+    g.n++; g.x+=q.x; g.y+=q.y; grille.set(c,g);
+  });
+  /* Critères assouplis après mesure : à 74 px d'écart minimum et 82 px de la
+     balle, l'Expert ne parvenait à poser que 1,9 mine sur 3 et cinq parcours
+     sur vingt n'en avaient aucune d'utile. On se contente de moins d'espace,
+     quitte à resserrer le champ de tir — c'est précisément le but. */
+  const cases=[...grille.values()].map(g=>({n:g.n, x:g.x/g.n, y:g.y/g.n}))
+    .filter(g=>g.n>1)
+    .filter(g=> Math.hypot(g.x-b0.x,g.y-b0.y)>62 && Math.hypot(g.x-t0.x,g.y-t0.y)>58)
+    .filter(g=> !ws.some(w=>g.x>w.x-16&&g.x<w.x+w.w+16&&g.y>w.y-16&&g.y<w.y+w.h+16))
+    .sort((p,q)=>q.n-p.n);
+
+  const out=[];
+  for (let ecart=58; ecart>=34 && out.length<nM; ecart-=12)
+    for (const c of cases){
+      if (out.length>=nM) break;
+      if (out.some(o=>Math.hypot(o.x-c.x, o.y-c.y)<ecart)) continue;
+      out.push({x:c.x, y:c.y});
+    }
+  return out.map(o=>[(o.x-a.x)/a.w, (o.y-a.y)/a.h]);
+}
+
+/* SIMULATION À BLANC : on rejoue la physique sans rien dessiner, pour savoir
+   si un parcours est atteignable. Sans cette vérification, le générateur
+   produirait tôt ou tard une cible enfermée derrière des murs. */
+/* LE PAR, MESURÉ. Il ne se décrète pas : on balaie les angles de tir et l'on
+   compte combien mènent à la cible. Un parcours qu'un tir sur cinq résout est
+   facile — par 1. Un parcours qu'un tir sur cent résout demande de chercher —
+   par 3. C'est ce chiffre qu'on annonce, comme au golf, et c'est sur lui que
+   repose l'économie de tirs. */
+function mesurerPar(L){
+  const g=anglesGagnants(L);
+  if (g===0) return 0;                 /* injouable */
+  /* PLUS LE NIVEAU EST HAUT, PLUS LE PAR EST EXIGEANT. Avec des seuils fixes,
+     l'Expert affichait encore seize par 1 sur trente : les mêmes chiffres
+     d'angles gagnants y donnaient les mêmes pars qu'en Faible, alors que le
+     tir y est bien plus dur. Les seuils montent donc avec le niveau. */
+  /* Le par mesure la difficulté du parcours, mais il est PLAFONNÉ par le
+     niveau : en Expert on n'a jamais plus de deux coups, quel que soit le
+     parcours. La difficulté vient donc du tracé ET du peu de coups accordés,
+     jamais d'une largesse qui rendrait le jeu plus facile. */
+  const s=SEUILS[niveau], plafond=NIVEAUX[niveau].parMax;
+  let par;
+  if (g>=s[0]) par=1;
+  else if (g>=s[1]) par=2;
+  else if (g>=s[2]) par=3;
+  else par=4;
+  return Math.min(par, plafond);
+}
+function jouable(L){ return anglesGagnants(L)>0; }
+function anglesGagnants(L){
+  const a=area();
+  const b0={...mapAvec(L.ball,a), r:14};
+  const t0={...mapAvec(L.target,a), r:23};
+  const ws=L.walls.map(q=>({x:a.x+q[0]*a.w,y:a.y+q[1]*a.h,w:q[2]*a.w,h:q[3]*a.h}));
+  const ms=(L.mines||[]).map(q=>({x:a.x+q[0]*a.w, y:a.y+q[1]*a.h}));
+  let gagnants=0;
+  const rest=restitution();
+  for (let k=0;k<120;k++){
+    const ang=k/120*6.283;
+    const b={x:b0.x,y:b0.y,vx:Math.cos(ang)*VITESSE,vy:Math.sin(ang)*VITESSE,r:14};
+    for (let i=0;i<3600;i++){
+      const dt=PAS, trajet=Math.hypot(b.vx,b.vy)*dt;
+      const nS=Math.max(1,Math.ceil(trajet/(b.r*0.6)));
+      for (let sub=0;sub<nS;sub++){
+        b.x+=b.vx*dt/nS; b.y+=b.vy*dt/nS;
+        for (const w of ws){
+          const nx=Math.max(w.x,Math.min(b.x,w.x+w.w)), ny=Math.max(w.y,Math.min(b.y,w.y+w.h));
+          const dx=b.x-nx, dy=b.y-ny;
+          if (dx*dx+dy*dy>b.r*b.r) continue;
+          if (Math.abs(dx)>Math.abs(dy)){ b.vx*=-1; b.x=dx>0?w.x+w.w+b.r:w.x-b.r; }
+          else { b.vy*=-1; b.y=dy>0?w.y+w.h+b.r:w.y-b.r; }
+          b.vx*=rest; b.vy*=rest;
+        }
+        for (const m of ms) if (collideMine(b,m)) break;
+        if (Math.hypot(b.x-t0.x,b.y-t0.y)<b.r+t0.r){ gagnants++; i=99999; break; }
+      }
+      let cogne=false;
+      if (b.x-b.r<a.x){ b.x=a.x+b.r; b.vx=Math.abs(b.vx); cogne=true; }
+      if (b.x+b.r>a.x+a.w){ b.x=a.x+a.w-b.r; b.vx=-Math.abs(b.vx); cogne=true; }
+      if (b.y-b.r<a.y){ b.y=a.y+b.r; b.vy=Math.abs(b.vy); cogne=true; }
+      if (b.y+b.r>a.y+a.h){ b.y=a.y+a.h-b.r; b.vy=-Math.abs(b.vy); cogne=true; }
+      if (cogne){ b.vx*=rest; b.vy*=rest; }
+      b.vx*=Math.pow(.988,PAS*60); b.vy*=Math.pow(.988,PAS*60);
+      if (Math.hypot(b.vx,b.vy)<26) break;
+    }
+  }
+  return gagnants;
+}
+function mapAvec(p,a){ return {x:a.x+p[0]*a.w, y:a.y+p[1]*a.h}; }
+
+function init(i){
+  li=i;
+  /* On tire un parcours, et l'on recommence tant qu'il n'est pas jouable. */
+  let L=null, essais=0;
+  while (essais++<24){
+    const cand=fabriquerNiveau(i, graine+essais*7);
+    /* on pose les mines sur les chemins gagnants du parcours NU, puis l'on
+       mesure le par sur le parcours miné — l'ordre compte : le par doit
+       refléter la difficulté réelle, mines comprises */
+    cand.mines=poserMines(cand, NIVEAUX[niveau].mines, alea(graine+essais*31));
+    let par=mesurerPar(cand);
+    /* Une mine peut fermer la DERNIÈRE solution : on en retire alors une, plutôt
+       que de jeter un parcours par ailleurs bon. */
+    while (par===0 && cand.mines.length){ cand.mines.pop(); par=mesurerPar(cand); }
+    if (par>0){ cand.par=par; L=cand; break; }
+  }
+  if (!L) L=fabriquerNiveau(i, graine);   /* filet : on prend le dernier */
+  niveauCourant=L;
+  const a=area();ball={...map(L.ball),vx:0,vy:0,r:14};target={...map(L.target),r:23};
+  walls=L.walls.map(q=>({x:a.x+q[0]*a.w,y:a.y+q[1]*a.h,w:q[2]*a.w,h:q[3]*a.h}));
+  mines=(L.mines||[]).map(q=>({x:a.x+q[0]*a.w, y:a.y+q[1]*a.h}));
+  shots=0;bounces=0;moving=false;gagne=false;drag=false;aim=null;trail=[];particles=[];
+  document.getElementById('levelTxt').textContent=i+1;
+  document.getElementById('parTxt').textContent=L.par;
+  hud();closeLayers();
+  /* on annonce le trou comme au golf : son numéro et son par */
+  toast('TROU '+(i+1)+' · PAR '+L.par, L.par>=3?'#ffd45c':'#6cf5b3');}function hud(){
+  document.getElementById('shotsTxt').textContent=reserve;
+  /* on montre les coups joués face au par : c'est cela qui situe le joueur,
+     bien mieux qu'un décompte de rebonds dont il ne fait rien. */
+  const par=niveauCourant?niveauCourant.par:2;
+  const e=document.getElementById('bounceTxt');
+  e.textContent=shots+' / '+par;
+  e.style.color = shots<par ? '#6cf5b3' : (shots===par ? '#f7fbff' : '#ff557d');
+}function closeLayers(){document.querySelectorAll('.layer').forEach(e=>e.classList.remove('on'));
+  const q=document.getElementById('quit');if(q)q.classList.add('on')}function show(id){closeLayers();document.getElementById(id).classList.add('on');
+  const q=document.getElementById('quit');if(q)q.classList.remove('on')}function toast(t,c='#fff'){const e=document.getElementById('toast');e.textContent=t;e.style.color=c;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),700)}
+const R_MINE=15;
+/* Le choc de mine : la balle repart dans l'axe qui la sépare du centre, avec
+   un gain d'élan. Même fonction pour le jeu, la prévision et la mesure du par —
+   c'est ce qui garantit que ce qu'on voit est ce qui arrivera. */
+function collideMine(b, m){
+  const dx=b.x-m.x, dy=b.y-m.y, d=Math.hypot(dx,dy);
+  if (d>=b.r+R_MINE || d<0.001) return false;
+  const nx=dx/d, ny=dy/d;
+  const v=Math.hypot(b.vx,b.vy);
+  b.x=m.x+nx*(b.r+R_MINE+0.5); b.y=m.y+ny*(b.r+R_MINE+0.5);
+  b.vx=nx*v*1.18; b.vy=ny*v*1.18;         /* repoussée, et relancée */
+  return true;
+}
+function collideRect(b,r){const nx=Math.max(r.x,Math.min(b.x,r.x+r.w)),ny=Math.max(r.y,Math.min(b.y,r.y+r.h)),dx=b.x-nx,dy=b.y-ny;if(dx*dx+dy*dy>b.r*b.r)return false;if(Math.abs(dx)>Math.abs(dy)){b.vx*=-1;b.x=dx>0?r.x+r.w+b.r:r.x-b.r}else{b.vy*=-1;b.y=dy>0?r.y+r.h+b.r:r.y-b.r}bounces++;hud();
+  const rest=restitution(); b.vx*=rest; b.vy*=rest;
+  burst(b.x,b.y,'#35e7ff',8);
+  return true}/* On rejoue la physique à blanc, et l'on s'arrête au nombre de rebonds voulu. */
+function prevoir(px,py,vx,vy,nRebonds){
+  const a=area(), pts=[{x:px,y:py}];
+  let b={x:px,y:py,vx,vy,r:ball.r}, rest=nRebonds;
+  for (let i=0;i<2400 && rest>0;i++){
+    const dt=PAS, trajet=Math.hypot(b.vx,b.vy)*dt;
+    const nS=Math.max(1,Math.ceil(trajet/(b.r*0.6)));
+    let cogne=false;
+    for (let sub=0;sub<nS && !cogne;sub++){
+      b.x+=b.vx*dt/nS; b.y+=b.vy*dt/nS;
+      for (const w of walls){
+        const nx=Math.max(w.x,Math.min(b.x,w.x+w.w)), ny=Math.max(w.y,Math.min(b.y,w.y+w.h));
+        const ddx=b.x-nx, ddy=b.y-ny;
+        if (ddx*ddx+ddy*ddy>b.r*b.r) continue;
+        if (Math.abs(ddx)>Math.abs(ddy)){ b.vx*=-1; b.x=ddx>0?w.x+w.w+b.r:w.x-b.r; }
+        else { b.vy*=-1; b.y=ddy>0?w.y+w.h+b.r:w.y-b.r; }
+        b.vx*=restitution(); b.vy*=restitution();
+        cogne=true; break;
+      }
+      for (const m of mines) if (collideMine(b,m)){ cogne=true; break; }
+    }
+    if (b.x-b.r<a.x){ b.x=a.x+b.r; b.vx=Math.abs(b.vx); cogne=true; }
+    if (b.x+b.r>a.x+a.w){ b.x=a.x+a.w-b.r; b.vx=-Math.abs(b.vx); cogne=true; }
+    if (b.y-b.r<a.y){ b.y=a.y+b.r; b.vy=Math.abs(b.vy); cogne=true; }
+    if (b.y+b.r>a.y+a.h){ b.y=a.y+a.h-b.r; b.vy=-Math.abs(b.vy); cogne=true; }
+    if (cogne){ pts.push({x:b.x,y:b.y}); rest--; }
+    b.vx*=Math.pow(.988,PAS*60); b.vy*=Math.pow(.988,PAS*60);
+    if (Math.hypot(b.vx,b.vy)<26) break;
+  }
+  return pts;
+}
+function burst(px,py,c,n){for(let i=0;i<n;i++){let a=Math.random()*6.28,s=40+Math.random()*130;particles.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,T:.35+Math.random()*.35,c})}}
+function update(dt){if(moving){trail.unshift({x:ball.x,y:ball.y,a:1});if(trail.length>14)trail.pop();/* DÉPLACEMENT PAR PETITS PAS. Le mur le plus mince fait 14 px et la balle
+   avance de 25 px par image à trente images par seconde : elle sautait
+   par-dessus. On découpe le trajet en tranches plus courtes que son rayon. */
+const trajet=Math.hypot(ball.vx,ball.vy)*dt;
+const nSub=Math.max(1,Math.ceil(trajet/(ball.r*0.6)));
+for(let sub=0;sub<nSub;sub++){
+  ball.x+=ball.vx*dt/nSub;ball.y+=ball.vy*dt/nSub;
+  for(const r of walls)collideRect(ball,r);
+  for(const m of mines) if(collideMine(ball,m)){ bounces++; hud();
+    burst(m.x,m.y,'#ff8a3d',16); }
+  if(Math.hypot(ball.x-target.x,ball.y-target.y)<ball.r+target.r && !gagne){
+    /* « gagne » verrouille l'état : sans lui, la balle pouvait s'immobiliser sur
+       la cible avec « moving » à faux et l'écran de victoire jamais affiché —
+       le minuteur se perd quand l'onglet passe en arrière-plan. Le joueur se
+       retrouvait alors avec une balle figée qu'aucun appui ne relançait. */
+    gagne=true; moving=false;
+    burst(target.x,target.y,'#ffd45c',34);
+    setTimeout(win,350);
+    return}
+}
+const a=area();let hit=false;if(ball.x-ball.r<a.x){ball.x=a.x+ball.r;ball.vx=Math.abs(ball.vx);hit=true}if(ball.x+ball.r>a.x+a.w){ball.x=a.x+a.w-ball.r;ball.vx=-Math.abs(ball.vx);hit=true}if(ball.y-ball.r<a.y){ball.y=a.y+ball.r;ball.vy=Math.abs(ball.vy);hit=true}if(ball.y+ball.r>a.y+a.h){ball.y=a.y+a.h-ball.r;ball.vy=-Math.abs(ball.vy);hit=true}if(hit){bounces++;hud();
+  /* CHAQUE REBOND COÛTE DE L'ÉNERGIE. Couper net au bout de deux rebonds
+     supprimait le sujet même du jeu : une balle qui rebondit doit s'essouffler,
+     pas s'éteindre d'un coup. La restitution fait le travail en douceur — la
+     balle va moins loin à chaque paroi, et finit par se poser. */
+  const rest=restitution();
+  ball.vx*=rest; ball.vy*=rest;
+  burst(ball.x,ball.y,'#8e64ff',7);}/* FROTTEMENT. À 0,999 par image, la balle gardait 41 % de sa vitesse après
+   quinze secondes et ne s'arrêtait jamais : on ne pouvait pas retirer, et sur
+   un niveau raté elle rebondissait indéfiniment. À 0,988 elle roule cinq à sept
+   secondes — le temps d'apprécier les rebonds — puis se pose. */
+ball.vx*=Math.pow(.988,dt*60);ball.vy*=Math.pow(.988,dt*60);
+if(Math.hypot(ball.vx,ball.vy)<26){ball.vx=0;ball.vy=0;moving=false;finTir()}}
+particles.forEach(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96});particles=particles.filter(p=>p.t<p.T)}function win(){const L=niveauCourant;let s=shots<=L.par?3:shots===L.par+1?2:1;
+  /* L'ÉCART AU PAR, COMME AU GOLF. Ma première économie était inflationniste :
+     jouer au par faisait passer la réserve de douze à quarante-deux en dix
+     trous, et la partie ne pouvait plus se terminer.
+     Ici le bilan est exactement l'écart au par. Birdie : un tir de plus en
+     réserve. Par : on maintient. Bogey : on en perd un. Il faut donc jouer
+     MIEUX que le par pour durer — c'est la tension qui manquait. */
+  /* LE DROIT DE JEU. Jouer au par laissait la réserve inchangée : un joueur
+     régulier ne perdait jamais, et l'on mesurait quatre-vingt-treize trous en
+     niveau Faible. Chaque trou coûte donc UN TIR de plus, comme un droit
+     d'entrée. Au par on perd doucement, il faut des birdies pour tenir — et
+     les parties durent dix à vingt trous au lieu de cent. */
+  const ecart=shots-L.par;                     /* négatif = mieux que le par */
+  const rendu=shots-ecart-1;                   /* ses coups, ± l'écart, moins le droit */
+  reserve+=rendu;
+  scoreTotal+=ecart;
+  if (li+1>record){ record=li+1; localStorage.setItem('bank.record',record); }stars[li]=Math.max(stars[li]||0,s);localStorage.setItem('bank.stars',JSON.stringify(stars));document.getElementById('resultStars').textContent='★'.repeat(s)+'☆'.repeat(3-s);document.getElementById('result').textContent='Cible atteinte';
+  document.getElementById('next').textContent='Continuer';
+  const noms={'-3':'Albatros','-2':'Eagle','-1':'Birdie','0':'Par','1':'Bogey','2':'Double bogey'};
+  const nom=noms[String(ecart)] || (ecart<0?'Albatros':'Triple bogey');
+  document.getElementById('result').textContent=nom;
+  const sc = scoreTotal===0 ? 'PAR' : (scoreTotal<0 ? scoreTotal : '+'+scoreTotal);
+  document.getElementById('resultText').innerHTML=
+    shots+' coup'+(shots>1?'s':'')+' pour un par '+L.par+
+    '<br>score du parcours : <b style="color:'+(scoreTotal<=0?'#6cf5b3':'#ff557d')+'">'+sc+'</b>'+
+    ' · réserve '+reserve;
+  show('win')}function fail(){
+  moving=false; toast('PLUS DE TIRS','#ff557d');
+  setTimeout(()=>{
+    document.getElementById('result').textContent='Partie terminée';
+    document.getElementById('resultStars').textContent=li+' cible'+(li>1?'s':'');
+    const sc = scoreTotal===0 ? 'PAR' : (scoreTotal<0 ? scoreTotal : '+'+scoreTotal);
+    document.getElementById('resultText').innerHTML=
+      '<b>'+li+'</b> trou'+(li>1?'s':'')+' joué'+(li>1?'s':'')+
+      ' · score <b style="color:'+(scoreTotal<=0?'#6cf5b3':'#ff557d')+'">'+sc+'</b>'+
+      '<br>Record : '+record+' trous · niveau '+NIVEAUX[niveau].nom;
+    document.getElementById('next').textContent='Recommencer';
+    show('win');
+  }, 800);
+}
+function draw(){x.clearRect(0,0,W,H);const a=area(),g=x.createLinearGradient(0,a.y,0,a.y+a.h);g.addColorStop(0,'#101d42');g.addColorStop(1,'#071022');x.fillStyle=g;x.fillRect(a.x,a.y,a.w,a.h);x.strokeStyle='rgba(83,231,255,.25)';x.lineWidth=2;x.strokeRect(a.x,a.y,a.w,a.h);for(let yy=a.y+20;yy<a.y+a.h;yy+=40){x.strokeStyle='rgba(255,255,255,.025)';x.beginPath();x.moveTo(a.x,yy);x.lineTo(a.x+a.w,yy);x.stroke()}walls.forEach(r=>{let gr=x.createLinearGradient(r.x,r.y,r.x+r.w,r.y+r.h);gr.addColorStop(0,'#293d78');gr.addColorStop(1,'#121c43');x.fillStyle=gr;x.shadowColor='#4e6bc9';x.shadowBlur=14;x.fillRect(r.x,r.y,r.w,r.h);x.shadowBlur=0;x.strokeStyle='rgba(255,255,255,.28)';x.strokeRect(r.x+.5,r.y+.5,r.w-1,r.h-1)});  /* LES MINES : un noyau orange, une couronne de pointes qui tourne, et un halo
+     qui palpite. On les lit tout de suite comme un danger — ou comme un
+     tremplin, puisqu'elles relancent la balle. */
+  mines.forEach(m=>{
+    const pl=1+Math.sin(performance.now()/240+m.x)*.10;
+    const h=x.createRadialGradient(m.x,m.y,2,m.x,m.y,R_MINE*2.4);
+    h.addColorStop(0,'rgba(255,138,61,.24)'); h.addColorStop(1,'rgba(255,138,61,0)');
+    x.fillStyle=h; x.beginPath(); x.arc(m.x,m.y,R_MINE*2.4,0,6.28); x.fill();
+    x.save(); x.translate(m.x,m.y); x.rotate(performance.now()/2600);
+    for (let k=0;k<8;k++){
+      x.rotate(6.283/8);
+      x.beginPath(); x.moveTo(R_MINE*.72,0); x.lineTo(R_MINE*1.3*pl,0);
+      x.strokeStyle='rgba(255,150,80,.9)'; x.lineWidth=3.2; x.lineCap='round'; x.stroke();
+    }
+    x.restore();
+    const g=x.createRadialGradient(m.x-4,m.y-5,2,m.x,m.y,R_MINE);
+    g.addColorStop(0,'#ffd9a8'); g.addColorStop(.42,'#ff8a3d'); g.addColorStop(1,'#7d2c07');
+    x.beginPath(); x.arc(m.x,m.y,R_MINE*pl,0,6.28);
+    x.fillStyle=g; x.shadowColor='#ff8a3d'; x.shadowBlur=14; x.fill(); x.shadowBlur=0;
+  });
+
+  const pulse=1+Math.sin(performance.now()/180)*.08;x.beginPath();x.arc(target.x,target.y,target.r*pulse,0,6.28);x.fillStyle='rgba(255,212,92,.16)';x.fill();x.lineWidth=5;x.strokeStyle='#ffd45c';x.shadowColor='#ffd45c';x.shadowBlur=18;x.stroke();x.shadowBlur=0;x.beginPath();x.arc(target.x,target.y,7,0,6.28);x.fillStyle='#fff2a8';x.fill();trail.forEach((t,i)=>{x.beginPath();x.arc(t.x,t.y,ball.r*(1-i/trail.length)*.8,0,6.28);x.fillStyle='rgba(53,231,255,'+(0.18*(1-i/trail.length))+')';x.fill()});if(drag&&aim){
+    /* LES DEUX PREMIERS REBONDS. Sans eux, viser relevait du tâtonnement : on
+       tirait, on regardait, on recommençait. En montrant où la balle ira
+       rebondir deux fois, on transforme l'essai en calcul — et c'est ce que le
+       jeu promet. Au-delà de deux, on donnerait la solution entière. */
+    const dx=ball.x-aim.x, dy=ball.y-aim.y, m=Math.hypot(dx,dy);
+    if (m>4){
+      /* La direction est désormais le SEUL réglage : on la montre sans
+         ambiguïté, avec une flèche depuis la balle et le doigt relié. */
+      const ang0=Math.atan2(dy,dx);
+      x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2;
+      x.beginPath(); x.moveTo(ball.x,ball.y); x.lineTo(aim.x,aim.y); x.stroke();
+      const pts=prevoir(ball.x,ball.y, dx/m*VITESSE, dy/m*VITESSE, 2);
+      x.setLineDash([9,7]); x.lineWidth=3; x.lineCap='round';
+      for (let k=0;k<pts.length-1;k++){
+        x.strokeStyle='rgba(255,255,255,'+(0.72-k*0.22).toFixed(2)+')';
+        x.beginPath(); x.moveTo(pts[k].x,pts[k].y); x.lineTo(pts[k+1].x,pts[k+1].y); x.stroke();
+      }
+      x.setLineDash([]);
+      /* la flèche de départ, qui dit le sens du tir */
+      const fx=ball.x+Math.cos(ang0)*34, fy=ball.y+Math.sin(ang0)*34;
+      x.save(); x.translate(fx,fy); x.rotate(ang0);
+      x.beginPath(); x.moveTo(9,0); x.lineTo(-6,-7); x.lineTo(-6,7); x.closePath();
+      x.fillStyle='rgba(255,255,255,.85)'; x.fill(); x.restore();
+      /* un repère à chaque point de rebond prévu */
+      for (let k=1;k<pts.length;k++){
+        x.beginPath(); x.arc(pts[k].x,pts[k].y,5,0,6.28);
+        x.strokeStyle='rgba(108,245,179,.85)'; x.lineWidth=2; x.stroke();
+      }
+    }
+  }let bg=x.createRadialGradient(ball.x-5,ball.y-6,2,ball.x,ball.y,ball.r);bg.addColorStop(0,'#ffffff');bg.addColorStop(.25,'#7cf4ff');bg.addColorStop(1,'#1266c9');x.beginPath();x.arc(ball.x,ball.y,ball.r,0,6.28);x.fillStyle=bg;x.shadowColor='#35e7ff';x.shadowBlur=20;x.fill();x.shadowBlur=0;particles.forEach(p=>{x.globalAlpha=1-p.t/p.T;x.fillStyle=p.c;x.beginPath();x.arc(p.x,p.y,2.2,0,6.28);x.fill()});x.globalAlpha=1}
+/* PAS DE TEMPS FIXE. Le jeu avançait au rythme de l'affichage — variable — et
+   la prévision calculait à soixante images par seconde. Sur un téléphone qui
+   descend à trente-trois, le premier rebond se décalait de cinq pixels, et le
+   second bien davantage : la prévision « ne fonctionnait pas tout le temps ».
+   Avec un pas fixe, la trajectoire prévue est EXACTEMENT celle qui sera jouée. */
+/* SURVEILLANCE. Malgré les verrous, si le jeu se retrouvait un jour dans un état
+   où la balle est immobile, aucun écran ouvert et le tir impossible, on le
+   détecte et l'on relance le trou plutôt que de laisser le joueur bloqué. */
+let tFige=0;
+function veiller(dt){
+  const ecran=document.querySelector('.layer.on');
+  if (ecran || moving || gagne || drag){ tFige=0; return; }
+  tFige+=dt;
+  if (tFige>12){ tFige=0; toast('TROU RELANCÉ','#ffd45c'); init(li); }
+}
+let last=performance.now(), reste=0;
+function loop(n){
+  let d=(n-last)/1000; last=n;
+  if (d>0.25) d=0.25;
+  reste+=d; let garde=0;
+  while (reste>=PAS && garde++<40){ update(PAS); veiller(PAS); reste-=PAS; }
+  draw(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+cv.addEventListener('pointerdown',e=>{
+  if(moving||gagne)return;
+  /* La zone de saisie passe de 45 à 70 pixels : à 45, une balle immobilisée
+     près d'un bord laissait trop peu de place au pouce. Et si l'on touche
+     ailleurs, on saisit quand même — le tir part de la balle de toute façon,
+     donc rien ne justifiait de refuser. */
+  drag=true; aim={x:e.clientX,y:e.clientY};
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+});
+/* Filet de sécurité : si le doigt quitte l'écran ou si le geste est annulé,
+   on relâche la saisie — sinon « drag » restait vrai et plus rien ne répondait. */
+cv.addEventListener('pointercancel',()=>{drag=false;aim=null});
+window.addEventListener('blur',()=>{drag=false;aim=null});cv.addEventListener('pointermove',e=>{if(drag)aim={x:e.clientX,y:e.clientY}});cv.addEventListener('pointerup',e=>{if(!drag)return;drag=false;let dx=ball.x-e.clientX,dy=ball.y-e.clientY,m=Math.hypot(dx,dy);if(m<18)return;shots++;reserve--;hud();/* Plus de VITESSE : 760 px/s donnait une balle molle sur un terrain de 700 px
+   de haut — près d'une seconde pour le traverser. À 1150, le tir claque et les
+   rebonds s'enchaînent, ce qui est tout l'intérêt du jeu. */
+ball.vx=dx/m*VITESSE;ball.vy=dy/m*VITESSE;moving=true;aim=null});
+/* L'ÉCHEC ne se déclenche plus cent millisecondes après le tir — la balle
+   volait encore et pouvait toucher la cible, si bien qu'on perdait un tir
+   gagnant. On attend qu'elle se soit arrêtée. */
+function finTir(){
+  if (reserve<=0) setTimeout(()=>{ if(!moving) fail(); },600);
+}
+/* Le niveau choisi est retenu d'une partie à l'autre. */
+try{ niveau=localStorage.getItem('bank.niveau')||'moyen'; }catch(e){}
+function majSeg(){ document.querySelectorAll('.niv').forEach(b=>
+  b.classList.toggle('on', b.dataset.v===niveau)); }
+document.getElementById('segNiv').onclick=e=>{
+  const b=e.target.closest('.niv'); if(!b) return;
+  niveau=b.dataset.v;
+  try{ localStorage.setItem('bank.niveau', niveau); }catch(err){}
+  majSeg();
+};
+majSeg();
+document.getElementById('play').onclick=()=>nouvellePartie();document.getElementById('next').onclick=()=>{
+  if (reserve<=0){ nouvellePartie(); return; }
+  init(li+1);
+};
+function nouvellePartie(){
+  reserve=NIVEAUX[niveau].reserve; scoreTotal=0;
+  graine=Math.floor(Math.random()*1e9);
+  document.getElementById('next').textContent='Continuer';
+  init(0);
+}document.getElementById('retry').onclick=()=>nouvellePartie();document.getElementById('home').onclick=()=>show('menu');
+document.getElementById('quit').onclick=()=>{moving=false;drag=false;show('menu')};
+init(0);show('menu');
+
+/* Bascule français / anglais des règles. La langue choisie est retenue d'une
+   ouverture à l'autre : on ne la redemande pas à chaque fois. */
+(function(){
+  let lg='fr';
+  try{ lg=localStorage.getItem('arkad.langue')||'fr'; }catch(e){}
+  function appliquer(){
+    document.querySelectorAll('.reglesListe').forEach(o=>{ o.hidden = o.dataset.lg!==lg; });
+    document.querySelectorAll('.reglesLangue .lg').forEach(b=>{
+      b.classList.toggle('on', b.dataset.lg===lg); });
+  }
+  document.addEventListener('click', e=>{
+    const b=e.target.closest('.reglesLangue .lg'); if(!b) return;
+    lg=b.dataset.lg;
+    try{ localStorage.setItem('arkad.langue', lg); }catch(err){}
+    appliquer();
+  });
+  appliquer();
+})();
+
+document.getElementById('ouvrirRegles').onclick=()=>show('regles');
+document.getElementById('fermerRegles').onclick=()=>show('menu');
+</script></body></html>

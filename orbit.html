@@ -1,0 +1,600 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#05060f">
+<title>ORBIT</title><style>
+:root{--ink:#f4f7ff;--muted:#8b96bd;--cyan:#5fe0ff;--violet:#a77bff;--gold:#ffd45c;--danger:#ff5f8a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:#05060f;color:var(--ink);
+  font-family:system-ui,-apple-system,sans-serif;touch-action:none;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+.hud{position:fixed;top:0;left:0;right:0;z-index:3;padding:calc(env(safe-area-inset-top) + 10px) 12px 0;
+  display:flex;gap:8px;pointer-events:none}
+.pill{background:rgba(6,8,22,.74);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);
+  border-radius:16px;padding:8px 12px}
+.grow{flex:1}
+.label{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.value{font-weight:900;font-size:19px}
+#quit{position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 62px);z-index:9;
+  width:46px;height:46px;border-radius:50%;display:none;align-items:center;justify-content:center;
+  border:1.5px solid rgba(255,255,255,.5);background:rgba(6,8,22,.9);color:#dfe8ff;
+  font-size:21px;line-height:1;padding:0;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.5)}
+#quit.on{display:flex}
+.layer{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;
+  padding:18px;background:radial-gradient(circle at 50% 15%,rgba(46,32,96,.96),rgba(3,4,12,.98) 68%)}
+.layer.on{display:flex}
+.card{width:min(420px,100%);padding:26px 22px;border:1px solid rgba(255,255,255,.14);
+  border-radius:28px;background:linear-gradient(160deg,rgba(24,22,62,.95),rgba(6,7,20,.96));
+  box-shadow:0 28px 80px rgba(0,0,0,.6);text-align:center}
+h1{font-size:clamp(38px,12vw,62px);margin:0;line-height:.9;letter-spacing:.02em;
+  background:linear-gradient(180deg,#fff,#7ee8ff 48%,#a77bff);-webkit-background-clip:text;
+  color:transparent;filter:drop-shadow(0 8px 18px rgba(95,224,255,.25))}
+.sub{color:var(--muted);line-height:1.5;margin:14px 0 18px}
+button{width:100%;border:0;border-radius:16px;padding:16px;font-weight:900;font-size:18px;
+  letter-spacing:.08em;text-transform:uppercase;color:#07101b;
+  background:linear-gradient(135deg,var(--cyan),#a77bff);
+  box-shadow:0 6px 0 #2b5f86,0 14px 30px rgba(95,224,255,.2);margin-top:10px}
+button:active{transform:translateY(4px);box-shadow:0 2px 0 #2b5f86}
+button.alt{background:rgba(255,255,255,.07);color:#dfe8ff;box-shadow:none;
+  border:1px solid rgba(255,255,255,.12);font-size:14px}
+.niv{flex:1;padding:11px 2px;margin:0;font-size:11px;letter-spacing:.08em;border-radius:12px;
+  background:rgba(255,255,255,.07);color:#b9c7e9;border:1px solid rgba(255,255,255,.12);
+  box-shadow:none;font-weight:800}
+.niv.on{background:linear-gradient(135deg,var(--cyan),#a77bff);color:#07101b;border-color:transparent}
+#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 104px);z-index:3;
+  text-align:center;color:#a8b5dd;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  pointer-events:none;text-shadow:0 2px 8px #000}
+#toast{position:fixed;left:50%;top:24%;transform:translate(-50%,-10px) scale(.9);opacity:0;z-index:6;
+  font-size:32px;font-weight:1000;letter-spacing:.04em;text-shadow:0 6px 22px #000;transition:.22s}
+#toast.on{opacity:1;transform:translate(-50%,0) scale(1)}
+.reglesLangue{display:flex;gap:6px;margin:0 0 14px}
+.reglesLangue .lg{flex:1;padding:9px 4px;border:1px solid rgba(255,255,255,.13);border-radius:10px;
+  background:rgba(255,255,255,.05);color:#a9b3d0;cursor:pointer;font-size:11.5px;
+  letter-spacing:.14em;text-transform:uppercase}
+.reglesLangue .lg.on{background:rgba(255,255,255,.9);color:#10121f;border-color:transparent}
+.reglesListe{margin:0;padding:0 0 0 22px;text-align:left;font-size:13.5px;line-height:1.6}
+.reglesListe li{margin-bottom:9px;color:#d2d9ee}
+.reglesListe li::marker{color:rgba(255,255,255,.4);font-size:11px}
+</style></head><body>
+<canvas id="c"></canvas>
+<button id="quit" title="Quitter">✕</button>
+<div class="hud">
+  <div class="pill grow"><div class="label">Orbite · Par</div>
+    <div class="value"><span id="lvlTxt">1</span><span style="color:#7ee8ff"> · par <span id="parTxt">2</span></span></div></div>
+  <div class="pill"><div class="label">Sondes</div><div class="value" id="resTxt">18</div></div>
+  <div class="pill"><div class="label">Tirs</div><div class="value" id="shotTxt">0 / 2</div></div>
+</div>
+<div id="hint">Règle l'angle au manche · relâche pour lancer</div>
+<div id="toast"></div>
+
+<div class="layer on" id="menu"><div class="card">
+  <h1>ORBIT</h1>
+  <p class="sub">Lance ta sonde. Les astres la courbent.<br>Un seul réglage : l'angle.<br>Chaque orbite a son par.</p>
+  <div style="display:flex;gap:6px;margin-bottom:4px" id="segNiv">
+    <button class="niv" data-v="faible">Faible</button><button class="niv" data-v="moyen">Moyen</button>
+    <button class="niv" data-v="fort">Fort</button><button class="niv" data-v="expert">Expert</button>
+  </div>
+  <button id="play">Jouer</button>
+  <button class="alt" id="ouvrirRegles">Règles · Rules</button>
+</div></div>
+
+<div class="layer" id="regles"><div class="card">
+  <h2 style="margin:0 0 14px">ORBIT</h2>
+  <div class="reglesLangue"><button class="lg on" data-lg="fr">Français</button><button class="lg" data-lg="en">English</button></div>
+  <ol class="reglesListe" data-lg="fr">
+    <li>Une sonde, une balise. Tu ne règles que l'angle du lancer.</li>
+    <li>Les astres attirent la sonde : sa trajectoire se courbe.</li>
+    <li>Plus un astre est massif, plus il courbe fort — et de loin.</li>
+    <li>Règle l'angle au manche, en bas de l'écran, puis relâche.</li>
+    <li>Le début de la trajectoire s'affiche : à toi de prolonger la courbe.</li>
+    <li>Tomber dans un astre détruit la sonde.</li>
+    <li>Chaque orbite a son par. Sous le par tu gagnes des sondes.</li>
+    <li>Chaque orbite coûte une sonde de droit d'entrée.</li>
+    <li>À court de sondes, la partie s'arrête.</li>
+    <li>Les systèmes changent à chaque partie — rien ne s'apprend par cœur.</li>
+  </ol>
+  <ol class="reglesListe" data-lg="en" hidden>
+    <li>One probe, one beacon. You only set the launch angle.</li>
+    <li>The bodies pull your probe: its path curves.</li>
+    <li>The heavier the body, the harder it bends your path — and from further out.</li>
+    <li>Set the angle on the stick at the bottom, then release.</li>
+    <li>Only the start of the path is shown — you extend the curve yourself.</li>
+    <li>Falling into a body destroys the probe.</li>
+    <li>Every orbit has a par. Under par you gain probes.</li>
+    <li>Every orbit costs one probe as a fee.</li>
+    <li>Run out of probes and the run ends.</li>
+    <li>Systems change every round — nothing can be memorised.</li>
+  </ol>
+  <button class="alt" id="fermerRegles">OK</button>
+</div></div>
+
+<div class="layer" id="win"><div class="card">
+  <h2 id="result">Balise atteinte</h2>
+  <div style="font-size:34px;color:var(--gold)" id="resStars">★★★</div>
+  <p class="sub" id="resText"></p>
+  <button id="next">Continuer</button>
+  <button class="alt" id="retry">Nouvelle partie</button>
+  <button class="alt" id="home">Menu</button>
+</div></div>
+
+<script>
+'use strict';
+/* ============================================================================
+   ORBIT — le tir gravitationnel.
+
+   Même recette que BANK : un seul paramètre, une physique déterministe et
+   montrée, des systèmes engendrés puis vérifiés, un par mesuré, une réserve
+   qui s'épuise. Ce qui change, c'est la nature du problème : ici la trajectoire
+   COURBE. Elle ne se devine pas à l'œil, et c'est précisément ce qui rend la
+   prévision indispensable plutôt que confortable — un astre déplacé de dix
+   pixels change tout le vol.
+   ============================================================================ */
+
+const cv=document.getElementById('c'), x=cv.getContext('2d');
+let W=0,H=0,D=1,pret=false;
+const marge=16, hautHUD=92;
+/* LE MANCHE. Viser en glissant depuis la sonde plaçait le doigt exactement
+   sur la trajectoire qu'on cherche à lire — on masquait ce qu'on visait.
+   On réserve donc une bande en bas de l'écran, hors du champ de vol, où le
+   pouce règle la direction sans rien cacher. */
+/* Le manche mangeait cent cinquante pixels de haut, soit près d'un quart de
+   l'écran sur un petit téléphone. Quatre-vingt-quatre suffisent : on le pose
+   plus bas, on le fait plus petit, et l'on peut le saisir bien au-delà de son
+   cercle — la précision demandée est celle de l'ANGLE, pas de la préhension. */
+const HAUT_MANCHE=84, R_MANCHE=36;
+const bas=HAUT_MANCHE+8;
+function manche(){ return { x:W/2, y:H-HAUT_MANCHE/2-env(), r:R_MANCHE }; }
+function env(){ return 8; }
+const PAS=1/120;               /* pas fixe : la prévision doit être exacte */
+const VITESSE=190;             /* vitesse de lancer, constante */
+const G=5200;                  /* constante de gravitation du jeu */
+const R_SONDE=5;
+
+/* Le NOMBRE d'astres ne suffisait pas à faire la difficulté : avec deux ou
+   cinq astres, on mesurait le même nombre d'angles gagnants. Ce qui compte
+   vraiment, c'est la TAILLE DE LA BALISE — donc la précision exigée — et la
+   longueur du vol. On règle les deux. */
+const NIVEAUX={
+  faible: { nom:'Faible', astresDeb:1, astresFin:2, reserve:22, cadence:5, balise:30 },
+  moyen:  { nom:'Moyen',  astresDeb:2, astresFin:3, reserve:18, cadence:4, balise:23 },
+  fort:   { nom:'Fort',   astresDeb:2, astresFin:4, reserve:15, cadence:3, balise:18 },
+  expert: { nom:'Expert', astresDeb:3, astresFin:5, reserve:12, cadence:3, balise:14 }
+};
+function rBalise(){ return NIVEAUX[niveau].balise; }
+let niveau='moyen';
+try{ niveau=localStorage.getItem('orbit.niveau')||'moyen'; }catch(e){}
+
+let li=0, sonde=null, balise=null, astres=[], systeme=null;
+let coups=0, reserve=18, scoreTotal=0, record=+(localStorage.getItem('orbit.record')||0);
+let vole=false, gagne=false, morte=false, drag=false, aim=null;
+/* l'angle courant, réglé au manche et conservé entre deux tirs */
+let angle=-Math.PI/2, manchePris=false;
+let trace=[], etincelles=[], graine=Math.floor(Math.random()*1e9);
+
+function aire(){ return {x:marge, y:hautHUD, w:W-marge*2, h:H-hautHUD-bas}; }
+function alea(g){ return function(){ g=(g*1664525+1013904223)>>>0; return g/4294967296; }; }
+
+/* ---------- fabrication d'un système ---------- */
+function fabriquerSysteme(rang, gr){
+  const r=alea(gr*7919+rang*104729+29), a=aire();
+  const N=NIVEAUX[niveau];
+  const n=Math.min(N.astresFin, N.astresDeb+Math.floor(rang/N.cadence));
+  const as=[];
+  for (let k=0;k<n;k++){
+    /* les astres occupent le milieu du terrain, jamais les extrémités où se
+       trouvent la sonde et la balise */
+    as.push({ x:a.x+a.w*(0.18+r()*0.64),
+              y:a.y+a.h*(0.24+r()*0.52),
+              r:16+r()*20,
+              m:0 });
+  }
+  as.forEach(o=>{ o.m=o.r*o.r*0.9; });       /* la masse suit la surface */
+  /* on les écarte les uns des autres */
+  for (let p=0;p<40;p++)
+    for (let i=0;i<as.length;i++) for (let j=i+1;j<as.length;j++){
+      const dx=as[j].x-as[i].x, dy=as[j].y-as[i].y, d=Math.hypot(dx,dy)||1;
+      const mini=as[i].r+as[j].r+62;
+      if (d<mini){ const f=(mini-d)/d*0.5;
+        as[i].x-=dx*f; as[i].y-=dy*f; as[j].x+=dx*f; as[j].y+=dy*f; }
+    }
+  /* La sonde part TOUJOURS du bas, la balise est en haut : sur un téléphone
+     tenu en main, on lance vers l'avant. Mes premiers tirages plaçaient parfois
+     la sonde en haut, et il fallait viser vers soi — contre-intuitif. */
+  /* Sonde et balise à distance des bords : à douze pour cent du bord, la sonde
+     n'était qu'à quarante-trois pixels de la paroi et en sortait en un quart de
+     seconde dès que l'angle n'était pas parfait. Le tir devenait ingrat. */
+  const coins=[[0.26,0.82, 0.74,0.18],[0.74,0.82, 0.26,0.18],
+               [0.5,0.84, 0.5,0.16],[0.32,0.84, 0.68,0.17],[0.68,0.84, 0.32,0.17]];
+  const c=coins[Math.floor(r()*coins.length)];
+  const loin=(px,py)=> as.every(o=>Math.hypot(px-o.x,py-o.y)>o.r+52);
+  let s={x:a.x+a.w*c[0], y:a.y+a.h*c[1]}, t={x:a.x+a.w*c[2], y:a.y+a.h*c[3]};
+  let garde=0;
+  while ((!loin(s.x,s.y)||!loin(t.x,t.y)) && garde++<50){
+    s={x:a.x+a.w*(0.24+r()*0.52), y:a.y+a.h*(0.76+r()*0.12)};
+    t={x:a.x+a.w*(0.24+r()*0.52), y:a.y+a.h*(0.12+r()*0.12)};
+  }
+  return { sonde:s, balise:t, astres:as, par:2 };
+}
+
+/* ---------- physique, partagée par le jeu et la prévision ---------- */
+function avancer(p, as){
+  /* l'attraction de chaque astre, en 1/d² comme la vraie gravitation */
+  let ax=0, ay=0;
+  for (const o of as){
+    const dx=o.x-p.x, dy=o.y-p.y;
+    const d2=dx*dx+dy*dy, d=Math.sqrt(d2);
+    if (d<o.r) return 'astre';                  /* elle tombe dedans */
+    const f=G*o.m/Math.max(d2, 400)/d;
+    ax+=dx*f; ay+=dy*f;
+  }
+  p.vx+=ax*PAS; p.vy+=ay*PAS;
+  p.x+=p.vx*PAS; p.y+=p.vy*PAS;
+  const a=aire();
+  if (p.x<a.x||p.x>a.x+a.w||p.y<a.y||p.y>a.y+a.h) return 'dehors';
+  return null;
+}
+/* On rejoue la physique à blanc. « complet » sert au jeu, qui a besoin du vol
+   entier pour mesurer le par ; « tronque » sert à l'AFFICHAGE. */
+function prevoir(px,py,vx,vy,maxPas,tronque){
+  const p={x:px,y:py,vx,vy}, pts=[{x:px,y:py}], as=astres;
+  let parcouru=0, avx=px, avy=py;
+  for (let i=0;i<maxPas;i++){
+    const fin=avancer(p, as);
+    if (i%3===0) pts.push({x:p.x,y:p.y});
+    if (fin) { pts.push({x:p.x,y:p.y}); return {pts, fin}; }
+    if (Math.hypot(p.x-balise.x,p.y-balise.y)<R_SONDE+rBalise()){
+      pts.push({x:p.x,y:p.y}); return {pts, fin:'balise'};
+    }
+    if (tronque){
+      /* ON MONTRE UNE LONGUEUR FIXE, pas un angle. Couper à la première
+         courbure donnait des amorces de quarante pixels — invisibles à l'écran.
+         Une distance parcourue donne toujours la même amorce lisible, quelle
+         que soit la force des astres alentour.
+         Montrer le vol entier, à l'inverse, revenait à afficher la réponse :
+         il suffisait de tourner le pouce jusqu'à ce que la ligne touche. */
+      parcouru += Math.hypot(p.x-avx, p.y-avy);
+      avx=p.x; avy=p.y;
+      if (parcouru > 190){ pts.push({x:p.x,y:p.y});
+        return {pts, fin:null, coupe:true, vx:p.vx, vy:p.vy}; }
+    }
+  }
+  return {pts, fin:null};
+}
+
+/* ---------- le par, mesuré ---------- */
+function anglesGagnants(S){
+  const sauve=[astres, balise];
+  astres=S.astres; balise=S.balise;
+  let n=0;
+  for (let k=0;k<180;k++){
+    const ang=k/180*6.283;
+    const r=prevoir(S.sonde.x, S.sonde.y, Math.cos(ang)*VITESSE, Math.sin(ang)*VITESSE, 2600);
+    if (r.fin==='balise') n++;
+  }
+  astres=sauve[0]; balise=sauve[1];
+  return n;
+}
+function mesurerPar(S){
+  const g=anglesGagnants(S);
+  if (g===0) return 0;
+  /* Seuils calibrés par mesure : avec les premiers, dix-neuf systèmes sur
+     trente tombaient en par 3 et aucun en par 1 — la difficulté ne se
+     répartissait pas. La cible est une balise ponctuelle et la trajectoire
+     courbe : il y a naturellement peu d'angles gagnants, il faut donc des
+     seuils bien plus bas qu'au rebond. */
+  if (g>=5) return 1;
+  if (g>=3) return 2;
+  if (g>=2) return 3;
+  return 4;
+}
+
+/* ---------- mise en place ---------- */
+function init(i){
+  li=i;
+  let S=null;
+  for (let essai=1; essai<=26 && !S; essai++){
+    const cand=fabriquerSysteme(i, graine+essai*13);
+    const par=mesurerPar(cand);
+    if (par>0){ cand.par=par; S=cand; }
+  }
+  if (!S){ S=fabriquerSysteme(i, graine); S.par=3; }
+  systeme=S; astres=S.astres; balise={...S.balise};
+  sonde={ x:S.sonde.x, y:S.sonde.y, vx:0, vy:0 };
+  coups=0; vole=false; gagne=false; morte=false; drag=false; aim=null;
+  trace=[]; etincelles=[];
+  document.getElementById('lvlTxt').textContent=i+1;
+  document.getElementById('parTxt').textContent=S.par;
+  majHud(); fermerEcrans();
+  toast('ORBITE '+(i+1)+' · PAR '+S.par, S.par>=3?'#ffd45c':'#7ee8ff');
+}
+function majHud(){
+  document.getElementById('resTxt').textContent=reserve;
+  const e=document.getElementById('shotTxt');
+  const par=systeme?systeme.par:2;
+  e.textContent=coups+' / '+par;
+  e.style.color = coups<par ? '#7ee8ff' : (coups===par ? '#f4f7ff' : '#ff5f8a');
+  const q=document.getElementById('quit');
+  q.classList.toggle('on', !document.querySelector('.layer.on'));
+}
+function fermerEcrans(){ document.querySelectorAll('.layer').forEach(e=>e.classList.remove('on'));
+  document.getElementById('quit').classList.add('on'); }
+function montrer(id){ fermerEcrans(); document.getElementById(id).classList.add('on');
+  document.getElementById('quit').classList.remove('on'); }
+function toast(t,c){ const e=document.getElementById('toast');
+  e.textContent=t; e.style.color=c||'#fff'; e.classList.add('on');
+  setTimeout(()=>e.classList.remove('on'), 900); }
+function gerbe(px,py,c,n){
+  for (let i=0;i<n;i++){ const a=Math.random()*6.283, s=40+Math.random()*150;
+    etincelles.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:0,T:.35+Math.random()*.4,c}); }
+}
+
+/* ---------- déroulé ---------- */
+function pas(dt){
+  if (vole && !gagne){
+    trace.push({x:sonde.x, y:sonde.y});
+    if (trace.length>420) trace.shift();
+    const fin=avancer(sonde, astres);
+    if (Math.hypot(sonde.x-balise.x, sonde.y-balise.y)<R_SONDE+rBalise()){
+      gagne=true; vole=false;
+      gerbe(balise.x, balise.y, '#ffd45c', 34);
+      setTimeout(reussi, 400);
+    } else if (fin){
+      vole=false; morte=true;
+      gerbe(sonde.x, sonde.y, fin==='astre'?'#ff5f8a':'#8b96bd', 18);
+      setTimeout(()=>{ morte=false;
+        sonde={x:systeme.sonde.x, y:systeme.sonde.y, vx:0, vy:0}; trace=[];
+        if (reserve<=0) perdu();
+      }, 620);
+    }
+  }
+  for (let k=etincelles.length-1;k>=0;k--){
+    const p=etincelles[k]; p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=.95; p.vy*=.95;
+    if (p.t>=p.T) etincelles.splice(k,1);
+  }
+}
+function reussi(){
+  const S=systeme, ecart=coups-S.par;
+  reserve += coups-ecart-1;                    /* ses coups, ± l'écart, moins le droit */
+  scoreTotal += ecart;
+  if (li+1>record){ record=li+1; try{ localStorage.setItem('orbit.record',record); }catch(e){} }
+  const noms={'-3':'Albatros','-2':'Eagle','-1':'Birdie','0':'Par','1':'Bogey','2':'Double bogey'};
+  const nom=noms[String(ecart)] || (ecart<0?'Albatros':'Triple bogey');
+  const s=ecart<0?3:(ecart===0?2:1);
+  document.getElementById('result').textContent=nom;
+  document.getElementById('resStars').textContent='★'.repeat(s)+'☆'.repeat(3-s);
+  const sc=scoreTotal===0?'PAR':(scoreTotal<0?scoreTotal:'+'+scoreTotal);
+  document.getElementById('resText').innerHTML=
+    coups+' tir'+(coups>1?'s':'')+' pour un par '+S.par+
+    '<br>score : <b style="color:'+(scoreTotal<=0?'#7ee8ff':'#ff5f8a')+'">'+sc+'</b>'+
+    ' · réserve '+reserve;
+  document.getElementById('next').textContent='Continuer';
+  montrer('win');
+}
+function perdu(){
+  const sc=scoreTotal===0?'PAR':(scoreTotal<0?scoreTotal:'+'+scoreTotal);
+  document.getElementById('result').textContent='Partie terminée';
+  document.getElementById('resStars').textContent=li+' orbite'+(li>1?'s':'');
+  document.getElementById('resText').innerHTML=
+    '<b>'+li+'</b> orbite'+(li>1?'s':'')+' franchie'+(li>1?'s':'')+
+    ' · score <b style="color:'+(scoreTotal<=0?'#7ee8ff':'#ff5f8a')+'">'+sc+'</b>'+
+    '<br>Record : '+record+' · niveau '+NIVEAUX[niveau].nom;
+  document.getElementById('next').textContent='Recommencer';
+  montrer('win');
+}
+function nouvellePartie(){
+  reserve=NIVEAUX[niveau].reserve; scoreTotal=0;
+  graine=Math.floor(Math.random()*1e9);
+  init(0);
+}
+
+/* ---------- rendu ---------- */
+function redim(){
+  W=innerWidth; H=innerHeight; D=Math.min(devicePixelRatio||1,2);
+  cv.width=W*D; cv.height=H*D; x.setTransform(D,0,0,D,0,0);
+  if (pret) init(li);
+}
+addEventListener('resize',()=>setTimeout(redim,60));
+
+let etoiles=[];
+function semerEtoiles(){
+  etoiles=[];
+  for (let k=0;k<90;k++) etoiles.push({x:Math.random(), y:Math.random(),
+    r:0.4+Math.random()*1.3, a:0.2+Math.random()*0.6});
+}
+function dessiner(){
+  x.clearRect(0,0,W,H);
+  x.fillStyle='#05060f'; x.fillRect(0,0,W,H);
+  etoiles.forEach(e=>{ x.globalAlpha=e.a; x.fillStyle='#cfe0ff';
+    x.beginPath(); x.arc(e.x*W, e.y*H, e.r, 0, 6.283); x.fill(); });
+  x.globalAlpha=1;
+  if (!systeme) return;
+  const a=aire();
+  x.strokeStyle='rgba(95,224,255,.16)'; x.lineWidth=1.5;
+  x.strokeRect(a.x, a.y, a.w, a.h);
+
+  /* les astres, avec leur halo d'influence */
+  astres.forEach(o=>{
+    const h=x.createRadialGradient(o.x,o.y,o.r*0.8,o.x,o.y,o.r*3.4);
+    h.addColorStop(0,'rgba(167,123,255,.16)'); h.addColorStop(1,'rgba(167,123,255,0)');
+    x.fillStyle=h; x.beginPath(); x.arc(o.x,o.y,o.r*3.4,0,6.283); x.fill();
+    const g=x.createRadialGradient(o.x-o.r*0.35,o.y-o.r*0.4,o.r*0.1,o.x,o.y,o.r);
+    g.addColorStop(0,'#cfd6ff'); g.addColorStop(0.4,'#7a6fd0'); g.addColorStop(1,'#241f4d');
+    x.beginPath(); x.arc(o.x,o.y,o.r,0,6.283); x.fillStyle=g; x.fill();
+    x.strokeStyle='rgba(255,255,255,.22)'; x.lineWidth=1; x.stroke();
+  });
+
+  /* la balise */
+  const p=1+Math.sin(performance.now()/200)*.09;
+  x.beginPath(); x.arc(balise.x,balise.y,rBalise()*p,0,6.283);
+  x.fillStyle='rgba(255,212,92,.16)'; x.fill();
+  x.lineWidth=4; x.strokeStyle='#ffd45c'; x.shadowColor='#ffd45c'; x.shadowBlur=18; x.stroke();
+  x.shadowBlur=0;
+  x.beginPath(); x.arc(balise.x,balise.y,5,0,6.283); x.fillStyle='#fff2b8'; x.fill();
+
+  /* la trajectoire prévue, pendant la visée */
+  if (!vole && !gagne && !morte){
+    {
+      const ang=angle;
+      const r=prevoir(sonde.x,sonde.y, Math.cos(ang)*VITESSE, Math.sin(ang)*VITESSE, 2600, true);
+      /* La couleur ne dit plus si le tir gagne : elle le disait avant même
+         qu'on lâche, ce qui achevait de supprimer la réflexion. */
+      x.setLineDash([7,6]); x.lineWidth=2.6; x.lineCap='round';
+      x.strokeStyle='rgba(146,236,255,.72)';
+      x.beginPath();
+      r.pts.forEach((q,i)=> i? x.lineTo(q.x,q.y) : x.moveTo(q.x,q.y));
+      x.stroke(); x.setLineDash([]);
+      /* le bout de la prévision s'estompe, pour dire « ça continue » */
+      if (r.coupe && r.pts.length>1){
+        /* LE PROLONGEMENT. Les trois points descendaient à 7 % d'opacité, soit
+           un gris presque noir sur un fond noir : invisibles. On les garde bien
+           visibles et on les fait GRANDIR en s'éloignant — c'est la taille, et
+           non l'effacement, qui dit « la suite t'appartient ». */
+        /* LA DIRECTION VIENT DE LA VITESSE, pas de deux points de la courbe.
+           J'enregistre un point toutes les trois itérations puis j'en ajoute un
+           dernier à la coupure : les deux pouvaient être CONFONDUS — mesuré à
+           0,0 px d'écart —, et la direction tirée d'un vecteur nul partait
+           n'importe où, jusqu'à cent soixante-quatre degrés de travers.
+           La vitesse à l'instant de la coupure, elle, est toujours juste. */
+        const d1=r.pts[r.pts.length-1];
+        const a2=Math.atan2(r.vy, r.vx);
+        for (let k=1;k<=4;k++){
+          const px=d1.x+Math.cos(a2)*k*17, py=d1.y+Math.sin(a2)*k*17;
+          x.globalAlpha=0.85-k*0.12;
+          x.beginPath(); x.arc(px, py, 3.4+k*0.5, 0, 6.283);
+          x.fillStyle='#92ecff'; x.shadowColor='#5fe0ff'; x.shadowBlur=8; x.fill();
+        }
+        x.shadowBlur=0; x.globalAlpha=1;
+      }
+      /* Plus de flèche : la courbe en pointillés dit déjà la direction, et bien
+         mieux qu'elle — puisqu'elle montre où la gravité emmène la sonde. */
+    }
+  }
+
+  /* la trace parcourue */
+  if (trace.length>1){
+    x.beginPath();
+    trace.forEach((q,i)=> i? x.lineTo(q.x,q.y) : x.moveTo(q.x,q.y));
+    x.strokeStyle='rgba(95,224,255,.5)'; x.lineWidth=2; x.lineCap='round'; x.stroke();
+  }
+
+  /* la sonde */
+  if (!morte){
+    const g=x.createRadialGradient(sonde.x-2,sonde.y-2,1,sonde.x,sonde.y,R_SONDE);
+    g.addColorStop(0,'#ffffff'); g.addColorStop(.4,'#8ceaff'); g.addColorStop(1,'#1f7fd0');
+    x.beginPath(); x.arc(sonde.x,sonde.y,R_SONDE,0,6.283);
+    x.fillStyle=g; x.shadowColor='#5fe0ff'; x.shadowBlur=16; x.fill(); x.shadowBlur=0;
+  }
+  etincelles.forEach(p=>{ x.globalAlpha=1-p.t/p.T; x.fillStyle=p.c;
+    x.beginPath(); x.arc(p.x,p.y,2.2,0,6.283); x.fill(); });
+  x.globalAlpha=1;
+
+  /* LE MANCHE, en bas, hors du champ de vol. Le pouce y règle la direction
+     sans jamais masquer la trajectoire qu'il cherche à lire. */
+  if (!document.querySelector('.layer.on')){
+    const M=manche();
+    x.beginPath(); x.arc(M.x,M.y,M.r,0,6.283);
+    x.fillStyle='rgba(12,16,38,.72)'; x.fill();
+    x.strokeStyle= manchePris ? 'rgba(126,232,255,.75)' : 'rgba(255,255,255,.2)';
+    x.lineWidth=2; x.stroke();
+    /* les repères cardinaux, discrets */
+    for (let k=0;k<8;k++){
+      const a2=k/8*6.283;
+      x.beginPath();
+      x.moveTo(M.x+Math.cos(a2)*(M.r-8), M.y+Math.sin(a2)*(M.r-8));
+      x.lineTo(M.x+Math.cos(a2)*(M.r-3), M.y+Math.sin(a2)*(M.r-3));
+      x.strokeStyle='rgba(255,255,255,.16)'; x.lineWidth=1.5; x.stroke();
+    }
+    /* le pointeur, à l'angle courant */
+    const px=M.x+Math.cos(angle)*(M.r-14), py=M.y+Math.sin(angle)*(M.r-14);
+    x.beginPath(); x.moveTo(M.x,M.y); x.lineTo(px,py);
+    x.strokeStyle='rgba(126,232,255,.6)'; x.lineWidth=3; x.lineCap='round'; x.stroke();
+    x.beginPath(); x.arc(px,py, manchePris?13:11, 0, 6.283);
+    const g2=x.createRadialGradient(px-3,py-4,1,px,py,13);
+    g2.addColorStop(0,'#ffffff'); g2.addColorStop(.45,'#7ee8ff'); g2.addColorStop(1,'#2b6fae');
+    x.fillStyle=g2; x.shadowColor='#5fe0ff'; x.shadowBlur=manchePris?16:8; x.fill();
+    x.shadowBlur=0;
+    x.beginPath(); x.arc(M.x,M.y,3.5,0,6.283); x.fillStyle='rgba(255,255,255,.35)'; x.fill();
+  }
+}
+
+/* ---------- boucle ---------- */
+let dernier=performance.now(), reste=0, tFige=0;
+function veiller(dt){
+  if (document.querySelector('.layer.on') || vole || gagne || drag || morte){ tFige=0; return; }
+  tFige+=dt;
+  if (tFige>14){ tFige=0; toast('ORBITE RELANCÉE','#ffd45c'); init(li); }
+}
+function boucle(n){
+  let d=(n-dernier)/1000; dernier=n;
+  if (d>0.25) d=0.25;
+  reste+=d; let garde=0;
+  while (reste>=PAS && garde++<40){ pas(PAS); veiller(PAS); reste-=PAS; }
+  dessiner(); requestAnimationFrame(boucle);
+}
+
+/* ---------- entrées ---------- */
+/* On saisit le manche n'importe où dans sa bande : viser ne demande aucune
+   précision de préhension, seulement de la précision d'angle. */
+function dansManche(px,py){ return py > H-HAUT_MANCHE-env()*2; }
+cv.addEventListener('pointerdown', e=>{
+  if (vole||gagne||morte||document.querySelector('.layer.on')) return;
+  if (!dansManche(e.clientX,e.clientY)) return;
+  manchePris=true; drag=true; aim={x:e.clientX, y:e.clientY};
+  majAngle();
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+}, {passive:true});
+cv.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  aim={x:e.clientX, y:e.clientY}; majAngle();
+}, {passive:true});
+function majAngle(){
+  const M=manche();
+  const dx=aim.x-M.x, dy=aim.y-M.y;
+  if (Math.hypot(dx,dy)<10) return;      /* trop près du centre : on garde l'angle */
+  angle=Math.atan2(dy,dx);
+}
+cv.addEventListener('pointerup', ()=>{
+  if (!drag) return;
+  drag=false; manchePris=false; aim=null;
+  if (vole||gagne||morte) return;
+  coups++; reserve--; majHud();
+  sonde.vx=Math.cos(angle)*VITESSE; sonde.vy=Math.sin(angle)*VITESSE;
+  trace=[]; vole=true;
+}, {passive:true});
+cv.addEventListener('pointercancel', ()=>{ drag=false; manchePris=false; aim=null; });
+addEventListener('blur', ()=>{ drag=false; manchePris=false; aim=null; });
+
+function majSeg(){ document.querySelectorAll('.niv').forEach(b=>
+  b.classList.toggle('on', b.dataset.v===niveau)); }
+document.getElementById('segNiv').onclick=e=>{
+  const b=e.target.closest('.niv'); if(!b) return;
+  niveau=b.dataset.v;
+  try{ localStorage.setItem('orbit.niveau', niveau); }catch(err){}
+  majSeg();
+};
+majSeg();
+document.getElementById('play').onclick=()=>nouvellePartie();
+document.getElementById('next').onclick=()=>{ if(reserve<=0) nouvellePartie(); else init(li+1); };
+document.getElementById('retry').onclick=()=>nouvellePartie();
+document.getElementById('home').onclick=()=>montrer('menu');
+document.getElementById('quit').onclick=()=>montrer('menu');
+document.getElementById('ouvrirRegles').onclick=()=>montrer('regles');
+document.getElementById('fermerRegles').onclick=()=>montrer('menu');
+(function(){
+  let lg='fr';
+  try{ lg=localStorage.getItem('arkad.langue')||'fr'; }catch(e){}
+  function appliquer(){
+    document.querySelectorAll('.reglesListe').forEach(o=>{ o.hidden=o.dataset.lg!==lg; });
+    document.querySelectorAll('.reglesLangue .lg').forEach(b=>b.classList.toggle('on', b.dataset.lg===lg));
+  }
+  document.addEventListener('click', e=>{
+    const b=e.target.closest('.reglesLangue .lg'); if(!b) return;
+    lg=b.dataset.lg;
+    try{ localStorage.setItem('arkad.langue', lg); }catch(err){}
+    appliquer();
+  });
+  appliquer();
+})();
+
+redim(); semerEtoiles(); pret=true; init(0); montrer('menu');
+requestAnimationFrame(boucle);
+</script></body></html>

@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<!-- Le site est public par nature : on demande au moins aux moteurs de
+     recherche de ne pas l'indexer, pour qu'il reste introuvable autrement
+     qu'en connaissant l'adresse. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-title" content="__TITRE__">
+<meta name="application-name" content="__TITRE__">
+<title>__TITRE__</title>
+<!-- PeerJS n'est chargé ici que pour le diagnostic : « defer » évite qu'un
+     réseau lent retarde l'affichage du hub. Les jeux, eux, l'embarquent. -->
+<script defer src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link rel="apple-touch-icon" id="icoApple" sizes="180x180" href="data:image/png;base64,__ICONE__">
+<link rel="icon" id="ico192" type="image/png" sizes="192x192" href="data:image/png;base64,__ICONE192__">
+<style>
+  :root{
+    --fond:#000; --fond2:#0c0d11;
+    --bleu:#0b69ff; --bleu-clair:#6ea6ff;
+    --texte:#f4f4f6; --doux:#9aa0ab; --faible:#666d78;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    --titre:"Avenir Next Condensed","HelveticaNeue-CondensedBold","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--fond);color:var(--texte);
+    font-family:var(--sans);user-select:none;-webkit-user-select:none;overscroll-behavior:none;
+    -webkit-font-smoothing:antialiased}
+  body{overflow:hidden}
+  /* sur fond noir, une seule lueur bleue en haut suffit à installer l'ambiance */
+  #halo{position:fixed;top:-24vh;left:50%;transform:translateX(-50%);width:120vw;height:52vh;
+    pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse at center, rgba(11,105,255,.22) 0%, rgba(11,105,255,0) 60%)}
+
+  #hub{position:fixed;inset:0;display:flex;flex-direction:column;z-index:2}
+  #hub.parti{display:none}
+
+  /* ---------- en-tête : discret, la vedette ce sont les jeux ---------- */
+  /* L'enseigne est centrée et séparée par un filet : elle ne peut plus être
+     confondue avec un élément de la liste, qui est alignée à gauche. */
+  header{flex:none;position:relative;text-align:center;
+    padding:calc(env(safe-area-inset-top) + 20px) 60px 18px}
+  /* Le pictogramme est un A : le poser à côté du mot ARKAD dédoublait la lettre.
+     Le mot porte seul l'identité, en bleu ; l'icône garde sa place sur
+     l'écran d'accueil, là où elle est indispensable. */
+  /* L'enseigne recule volontairement : elle nomme, elle ne décore pas.
+     Le bleu de la marque reste présent, mais sous forme de lumière — le halo
+     derrière le titre — et non sous forme d'objet coloré posé sur la page. */
+  h1{margin:0;line-height:1;font-family:var(--sans);font-size:16px;font-weight:600;
+    letter-spacing:.42em;text-indent:.42em;color:rgba(244,244,246,.94)}
+  .sous{font-size:10.5px;letter-spacing:.02em;color:var(--faible);margin:7px 0 0}
+  .outils{position:absolute;top:calc(env(safe-area-inset-top) + 18px);right:12px;display:flex;gap:0}
+  .ico{border:0;background:none;color:var(--faible);cursor:pointer;font-size:14px;
+    width:31px;height:31px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+  .ico:active{background:rgba(255,255,255,.08);color:var(--texte)}
+
+  /* ---------- les bornes ---------- */
+  #liste{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:2px 16px 14px;display:flex;
+    flex-direction:column;gap:14px}
+  /* Sur du noir, une ombre noire est invisible : le relief vient d'un liseré
+     clair en haut et d'une lueur colorée sous la borne, comme si elle éclairait
+     le fond. C'est aussi ce qui prolonge le rayonnement de l'icône. */
+  /* Les quatre bornes se PARTAGENT la hauteur restante au lieu d'avoir une
+     taille fixe qu'un conteneur trop court venait rogner. Elles ne sont donc
+     jamais écrasées : elles occupent exactement la place disponible, entre un
+     plancher lisible et un plafond raisonnable. */
+  /* Les bornes reprennent une hauteur FIXE : avec huit jeux, se partager la
+     hauteur de l'écran les réduirait à des bandeaux. On défile, comme dans
+     n'importe quelle liste. */
+  .carte{position:relative;flex:0 0 auto;height:150px;
+    border-radius:20px;overflow:hidden;cursor:pointer;
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:0 4px 0 rgba(0,0,0,.9), 0 16px 38px -12px var(--acc, rgba(255,255,255,.2));
+    transition:transform .11s, box-shadow .11s}
+  .carte:active{transform:translateY(4px);
+    box-shadow:0 0 0 rgba(0,0,0,.9), 0 8px 22px -12px var(--acc, rgba(255,255,255,.2))}
+  .carte.bientot{opacity:.42;cursor:default}
+  .carte.cache{display:none}
+  .lueur{position:absolute;inset:0;pointer-events:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.24), inset 0 -22px 40px rgba(0,0,0,.34)}
+  /* ---------- le rail des jeux suivants ---------- */
+  .railTitre{flex:0 0 auto;margin:6px 2px -4px;font-family:var(--display);font-size:9.5px;
+    letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.34)}
+  .rail{flex:0 0 auto;display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;
+    padding:2px 0 8px;margin:0 -16px;padding-left:16px;padding-right:16px}
+  .rail::-webkit-scrollbar{display:none}
+  .jeton{position:relative;flex:0 0 auto;width:132px;height:96px;border-radius:15px;
+    overflow:hidden;cursor:pointer;scroll-snap-align:start;
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:0 3px 0 rgba(0,0,0,.9), 0 10px 24px -10px var(--acc, rgba(255,255,255,.2));
+    transition:transform .11s, box-shadow .11s}
+  .jeton:active{transform:translateY(3px);
+    box-shadow:0 0 0 rgba(0,0,0,.9), 0 6px 16px -10px var(--acc, rgba(255,255,255,.2))}
+  .jeton.bientot{opacity:.42;cursor:default}
+  .miniJ{position:absolute;inset:0;overflow:hidden}
+  .nomJ{position:absolute;left:10px;right:8px;bottom:7px;margin:0;
+    font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:.05em;
+    text-transform:uppercase;line-height:1}
+  .miniJ i{position:absolute;display:block}
+
+  .mini{position:absolute;right:0;top:0;bottom:0;width:56%;overflow:hidden}
+  .voile{position:absolute;inset:0;pointer-events:none}
+  .contenu{position:absolute;left:19px;right:44%;bottom:17px}
+  .nom{font-family:var(--titre);font-size:33px;font-weight:700;letter-spacing:.05em;
+    line-height:.95;margin:0 0 7px;text-transform:uppercase;
+    text-shadow:0 2px 12px rgba(0,0,0,.6)}
+  .meta{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;margin:0;
+    color:rgba(255,255,255,.6)}
+  .record{position:absolute;top:14px;right:14px;padding:6px 11px;border-radius:14px;
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    background:rgba(0,0,0,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .fleche{position:absolute;left:19px;bottom:17px;display:none}
+
+  /* ---------- miniatures : ce que le jeu montre vraiment ---------- */
+  .mini i{position:absolute;display:block}
+  /* Les illustrations sont écrites pour un cadre en 56 % de large ; dans le
+     rail elles occupent tout le jeton, et l'on n'a qu'à les réduire. */
+  .miniJ{transform:scale(.72);transform-origin:70% 45%}
+  /* Lucarne : la cage et les gants plantés */
+  .m-lucarne .sol{left:0;right:0;bottom:0;height:38px;background:#14301f}
+  .m-lucarne .cage{left:16px;right:16px;top:34px;bottom:38px;border:3px solid #eef2e6;
+    border-bottom:none;border-radius:2px 2px 0 0}
+  .m-lucarne .net{left:19px;right:19px;top:37px;bottom:38px;
+    background:repeating-linear-gradient(45deg,transparent 0 6px,rgba(238,242,230,.22) 6px 7px),
+               repeating-linear-gradient(-45deg,transparent 0 6px,rgba(238,242,230,.22) 6px 7px)}
+  .m-lucarne .g{border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .m-lucarne .g1{width:26px;height:26px;left:34px;top:52px;background:#c9f24a}
+  .m-lucarne .g2{width:22px;height:22px;right:40px;top:78px;background:#8fd13a}
+  .m-lucarne .g3{width:20px;height:20px;left:78px;top:92px;background:#e04b3c}
+  .m-lucarne .b{width:14px;height:14px;border-radius:50%;background:#f7f3e6;
+    right:24px;bottom:14px;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+  /* Baby : le feutre, les barres de laiton et les joueurs */
+  /* ORBIT — le vide, deux astres, la balise en haut et la courbe de la sonde
+     qui les contourne. La trajectoire incurvée dit tout du jeu. */
+  .m-orbit .espace{inset:0;background:radial-gradient(ellipse at 60% 30%,#241d52 0%,#0a0a20 55%,#05060f 100%)}
+  .m-orbit .etl{width:2px;height:2px;border-radius:50%;background:#cfe0ff;opacity:.55}
+  .m-orbit .e1{left:12%;top:22%} .m-orbit .e2{left:78%;top:14%} .m-orbit .e3{left:32%;top:70%}
+  .m-orbit .e4{left:88%;top:56%} .m-orbit .e5{left:52%;top:12%}
+  .m-orbit .astre{border-radius:50%;
+    background:radial-gradient(circle at 34% 30%,#cfd6ff,#7a6fd0 42%,#241f4d);
+    box-shadow:0 0 16px rgba(140,120,230,.45), inset 0 0 0 1px rgba(255,255,255,.2)}
+  .m-orbit .a1{left:46%;top:34%;width:26px;height:26px;margin:-13px 0 0 -13px}
+  .m-orbit .a2{left:64%;top:64%;width:17px;height:17px;margin:-8px 0 0 -8px}
+  .m-orbit .balise{right:13%;top:18%;width:17px;height:17px;margin:-8px -8px 0 0;
+    border-radius:50%;border:2.5px solid #ffd45c;background:rgba(255,212,92,.18);
+    box-shadow:0 0 13px rgba(255,212,92,.7)}
+  .m-orbit .sondeO{left:19%;bottom:16%;width:11px;height:11px;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%,#ffffff,#8ceaff 34%,#1f7fd0);
+    box-shadow:0 0 12px rgba(95,224,255,.8)}
+  /* la courbe : un quart d'anneau en pointillés, qui contourne les astres */
+  .m-orbit .arc{left:8%;top:10%;width:76%;height:78%;border-radius:50%;
+    border:2px dashed rgba(146,236,255,.6);
+    border-right-color:transparent;border-top-color:transparent}
+
+  /* BANK — l'aire de jeu, deux murs, et la trajectoire en pointillés qui rebondit
+     jusqu'à la cible. C'est le geste du jeu résumé en une image. */
+  .m-bank .aire{inset:0;background:linear-gradient(160deg,#16244a 0%,#0d1730 60%,#070d1c 100%);
+    box-shadow:inset 0 0 0 1px rgba(83,231,255,.22)}
+  .m-bank .murB{background:linear-gradient(140deg,#31468a,#151f4b);border-radius:2px;
+    box-shadow:0 0 8px rgba(78,107,201,.5), inset 0 0 0 1px rgba(255,255,255,.22)}
+  .m-bank .m1{left:33%;top:18%;width:4.5%;height:44%}
+  .m-bank .m2{left:62%;top:42%;width:4.5%;height:44%}
+  .m-bank .cibleB{right:11%;top:16%;width:17px;height:17px;margin:-8px -8px 0 0;
+    border-radius:50%;border:2.5px solid #ffd45c;background:rgba(255,212,92,.2);
+    box-shadow:0 0 12px rgba(255,212,92,.7)}
+  .m-bank .balleB{left:15%;bottom:15%;width:15px;height:15px;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%,#ffffff,#7cf4ff 28%,#1266c9);
+    box-shadow:0 0 12px rgba(53,231,255,.75)}
+  /* les trois segments de la trajectoire, en pointillés */
+  .m-bank .seg{height:2px;background:repeating-linear-gradient(90deg,
+      rgba(255,255,255,.72) 0 5px, rgba(255,255,255,0) 5px 10px);transform-origin:left center}
+  .m-bank .s1{left:17%;bottom:19%;width:26%;transform:rotate(-42deg)}
+  .m-bank .s2{left:36%;top:36%;width:30%;transform:rotate(24deg)}
+  .m-bank .s3{left:63%;top:52%;width:28%;transform:rotate(-58deg)}
+
+  /* BOULES — le terrain de sable vu de dessus : le cercle de lancer en bas, le
+     bouchon au milieu, et les boules autour. La lecture doit être immédiate —
+     qui est le plus près. */
+  .m-boules .sable{inset:0;background:linear-gradient(155deg,#c9aa6f 0%,#b1915a 55%,#96794a 100%)}
+  .m-boules .cercleB{left:12%;bottom:9%;width:19%;height:12%;border-radius:50%;
+    border:2px solid rgba(246,243,236,.55)}
+  .m-boules .cochon{left:51%;top:48%;width:13px;height:13px;margin:-6px 0 0 -6px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#ffd9a8,#e8643c 55%,#8c3418)}
+  /* LES BOULES, reprises du jeu à l'identique.
+     Le dégradé, les stries et l'éclat sont ceux de « dessiner() » dans Pitch :
+     mêmes six arrêts de couleur, mêmes proportions relatives au rayon.
+     La taille est fixée EN PIXELS et non en pourcentages : dans un cadre trois
+     fois plus large que haut, 15 % de large ne valent pas 15 % de haut, et mes
+     boules sortaient complètement écrasées. */
+  .m-boules .bl,.m-boules .br{width:30px;height:30px;border-radius:50%;
+    background:
+      /* l'éclat vif, en haut à gauche */
+      radial-gradient(ellipse 20% 12% at 32% 30%, rgba(255,255,255,.78) 0%, rgba(255,255,255,0) 70%),
+      /* les stries, deux bandes sombres en travers */
+      linear-gradient(96deg, rgba(0,0,0,0) 40%, rgba(22,24,25,.34) 41%, rgba(0,0,0,0) 43%),
+      linear-gradient(84deg, rgba(0,0,0,0) 57%, rgba(22,24,25,.34) 58%, rgba(0,0,0,0) 60%),
+      /* l'acier : les six arrêts du jeu */
+      radial-gradient(circle at 31% 29%,
+        #ffffff 0%, #e9edf0 12%, #8e969b 33%, #d9dde0 58%, #62696e 80%, #202326 100%);
+    box-shadow:2px 3px 3px rgba(40,30,16,.34), inset 0 0 0 1px rgba(0,0,0,.5)}
+  /* Chaque boule est centrée sur son point : une taille fixe en pixels et une
+     position en pourcentage ne se combinent qu'avec ce décalage de la moitié
+     du diamètre. Mes règles de position avaient purement disparu lors d'une
+     réécriture du bloc — les cinq boules s'empilaient donc en haut à gauche. */
+  .m-boules .b1{left:36%;top:26%;margin:-15px 0 0 -15px}
+  .m-boules .b2{left:63%;top:55%;margin:-15px 0 0 -15px}
+  .m-boules .b3{left:43%;top:71%;margin:-15px 0 0 -15px}
+  .m-boules .r1{left:57%;top:29%;margin:-15px 0 0 -15px}
+  .m-boules .r2{left:74%;top:76%;margin:-15px 0 0 -15px}
+  /* l'anneau d'équipe, tracé à l'intérieur comme dans le jeu */
+  .m-boules .bl::after,.m-boules .br::after{content:'';position:absolute;
+    inset:17%;border-radius:50%;border:1.5px solid}
+  .m-boules .bl::after{border-color:rgba(77,143,224,.72)}
+  .m-boules .br::after{border-color:rgba(224,83,63,.72)}
+
+  /* Le bouchon reste le seul objet vraiment coloré du terrain. */
+  .m-boules .trainee{left:22%;bottom:16%;width:34%;height:2px;
+    background:linear-gradient(90deg,rgba(246,243,236,0),rgba(246,243,236,.4));
+    transform:rotate(-26deg);transform-origin:left center}
+
+  /* CROSS — la campagne vue de dessus : des chaumes, deux boqueteaux, une
+     mare, deux obstacles et un cheval lancé. Aucun tracé, aucune lice : c'est
+     précisément ce qui distingue ce jeu de Steeple. */
+  .m-cross .campagne{inset:0;background:linear-gradient(160deg,#3d6b32 0%,#2f5527 60%,#25441f 100%)}
+  .m-cross .champ{background:#b09052;border-radius:3px;opacity:.9}
+  .m-cross .ch1{left:8%;top:12%;width:38%;height:26%;transform:rotate(-8deg)}
+  .m-cross .ch2{right:6%;bottom:14%;width:34%;height:22%;transform:rotate(6deg)}
+  .m-cross .boqueteau{border-radius:50%;background:#1c3d1c}
+  .m-cross .bq1{right:4%;top:6%;width:22%;height:30%}
+  .m-cross .bq2{left:-4%;bottom:2%;width:20%;height:26%}
+  .m-cross .mare{left:44%;top:52%;width:22%;height:15%;border-radius:50%;
+    background:#2f5f70;box-shadow:inset 0 1px 0 rgba(180,220,240,.4)}
+  .m-cross .tronc{height:5%;border-radius:2px;background:#6b4a28;
+    box-shadow:inset 0 1px 0 #9c7043}
+  .m-cross .tr1{left:22%;top:44%;width:26%}
+  .m-cross .tr2{right:16%;top:30%;width:22%}
+  .m-cross .buis{left:56%;bottom:24%;width:24%;height:7%;border-radius:5px;
+    background:#2e582a;box-shadow:0 -2px 0 rgba(60,106,50,.9)}
+  .m-cross .chev{left:30%;bottom:34%;width:9%;height:13%;border-radius:45%;
+    background:#5b3a22;transform:rotate(-18deg)}
+
+  /* BLITZ — deux lignes de bataille séparées par une rivière et son pont.
+     La lecture doit être immédiate : du bleu en bas, du rouge en haut, et le
+     goulet au milieu qui explique tout le jeu. */
+  .m-blitz .plaine{inset:0;background:linear-gradient(#3b5c2e 0%,#2c4a24 55%,#243c1e 100%)}
+  .m-blitz .riviere{left:0;right:0;top:47%;height:11%;background:#28596e;
+    box-shadow:inset 0 1px 0 rgba(180,220,240,.35),inset 0 -1px 0 rgba(0,0,0,.3)}
+  .m-blitz .pont{left:26%;top:44%;width:15%;height:17%;background:#7a5f38;
+    border:1px solid #9a7c4c;border-radius:1px}
+  .m-blitz .bois{border-radius:50%;background:#1b3216}
+  .m-blitz .bo1{left:-6%;top:8%;width:26%;height:22%}
+  .m-blitz .bo2{right:-4%;bottom:4%;width:22%;height:19%}
+  .m-blitz .reg{width:17%;height:7%;border-radius:2px}
+  .m-blitz .br1{left:16%;bottom:16%;background:#4d7fd6}
+  .m-blitz .br2{left:38%;bottom:10%;background:#4d7fd6}
+  .m-blitz .br3{left:60%;bottom:20%;background:#4d7fd6;opacity:.85}
+  .m-blitz .rr1{left:20%;top:16%;background:#d4453a}
+  .m-blitz .rr2{left:44%;top:10%;background:#d4453a}
+  .m-blitz .rr3{left:64%;top:20%;background:#d4453a;opacity:.85}
+  .m-blitz .fum{border-radius:50%;background:rgba(240,236,220,.16)}
+  .m-blitz .f1{left:30%;top:36%;width:20%;height:16%}
+  .m-blitz .f2{left:52%;top:52%;width:16%;height:13%}
+
+  .m-baby .feutre{inset:0;background:#1f4630;
+    background-image:repeating-linear-gradient(rgba(255,255,255,.035) 0 16px, transparent 16px 32px)}
+  .m-baby .mid{left:0;right:0;top:50%;height:2px;background:rgba(238,242,230,.22)}
+  .m-baby .rond{left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;
+    border:2px solid rgba(238,242,230,.22);border-radius:50%}
+  .m-baby .rod{left:0;right:0;height:3px;
+    background:linear-gradient(90deg,#8a6320,#f2e2b6 45%,#8a6320)}
+  .m-baby .r1{top:34px} .m-baby .r2{bottom:34px}
+  .m-baby .p{width:30px;height:15px;border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,.45)}
+  .m-baby .p1{background:#3d7fd6;top:28px;left:22px}
+  .m-baby .p2{background:#3d7fd6;top:28px;right:22px}
+  .m-baby .p3{background:#e04b3c;bottom:28px;left:44px}
+  .m-baby .p4{background:#e04b3c;bottom:28px;right:6px}
+  .m-baby .b{width:13px;height:13px;border-radius:50%;background:#f7f3e6;
+    left:50%;top:50%;margin:-6px 0 0 -6px}
+  /* Steeple : un peloton de sept chevaux lancés entre les lices, casaques
+     visibles sur le dos — la même image que dans le jeu. */
+  .m-steeple .pre{inset:0;background:linear-gradient(155deg,#2b5c33,#0a1a0e)}
+  .m-steeple .tonte{inset:0;background:repeating-linear-gradient(90deg,
+    rgba(255,255,255,.030) 0 26px, transparent 26px 52px)}
+  .m-steeple .lice{left:0;right:0;height:3px;background:rgba(240,246,236,.8);border-radius:2px}
+  .m-steeple .l1{top:22px} .m-steeple .l2{top:132px}
+  /* Cheval vu de dessus : museau, encolure, épaule large, croupe, queue.
+     Découpé lui aussi — un rectangle arrondi faisait un flacon. */
+  .m-steeple .ch{width:17px;height:31px;
+    background:linear-gradient(100deg,#6d4527,#4a2e1a);
+    filter:drop-shadow(0 3px 7px rgba(0,0,0,.55));
+    clip-path:polygon(45% 0%, 55% 0%, 60% 9%, 57% 17%, 70% 25%, 76% 46%,
+                      73% 72%, 66% 88%, 56% 95%, 54% 100%, 46% 100%, 44% 95%,
+                      34% 88%, 27% 72%, 24% 46%, 30% 25%, 43% 17%, 40% 9%)}
+  .m-steeple .ch::before{content:"";position:absolute;left:4px;top:11px;width:9px;height:11px;
+    border-radius:4px;background:var(--cas)}
+  .m-steeple .ch::after{content:"";position:absolute;left:5.5px;top:6px;width:6px;height:6px;
+    border-radius:50%;background:var(--toq,#f2f6f0)}
+  /* mottes de terre soulevées : la course se voit */
+  .m-steeple .motte{width:5px;height:3px;border-radius:2px;background:rgba(28,54,30,.85)}
+  /* peloton groupé dans la moitié droite, hors du voile */
+  .m-steeple .h1{--cas:#e8452f;--toq:#f2f6f0;left:58px;top:36px;transform:rotate(-8deg)}
+  .m-steeple .h2{--cas:#4d9bff;--toq:#15201a;left:82px;top:66px;transform:rotate(-4deg)}
+  .m-steeple .h3{--cas:#ffcf5a;--toq:#15201a;left:66px;top:96px;transform:rotate(-10deg)}
+  .m-steeple .h4{--cas:#5ce08a;--toq:#f2f6f0;left:104px;top:44px;transform:rotate(-6deg)}
+  .m-steeple .h5{--cas:#c76dff;--toq:#ffcf5a;left:110px;top:84px;transform:rotate(-9deg)}
+  .m-steeple .h6{--cas:#f2f6f0;--toq:#e8452f;left:138px;top:60px;transform:rotate(-5deg)}
+  .m-steeple .m1{left:74px;top:70px} .m-steeple .m2{left:98px;top:100px}
+  .m-steeple .m3{left:122px;top:78px} .m-steeple .m4{left:56px;top:74px}
+
+  /* Ailes : trois appareils en formation piquant vers le damier d'arrivée */
+  .m-ailes .sol{inset:0;background:linear-gradient(160deg,#1d4630,#08170e)}
+  .m-ailes .champ{inset:0;background:repeating-linear-gradient(114deg,
+    rgba(255,255,255,.028) 0 30px, transparent 30px 60px)}
+  .m-ailes .mat{right:22px;top:12px;width:3px;height:78px;background:#e9f2e6;border-radius:2px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  .m-ailes .damier{right:25px;top:14px;width:44px;height:33px;border-radius:2px;
+    transform:rotate(-5deg);background-color:#12200f;
+    background-image:linear-gradient(45deg,#fff 25%,transparent 25%,transparent 75%,#fff 75%),
+                     linear-gradient(45deg,#fff 25%,transparent 25%,transparent 75%,#fff 75%);
+    background-size:12px 12px;background-position:0 0,6px 6px;
+    box-shadow:0 3px 10px rgba(0,0,0,.55)}
+  /* Ce ne sont pas des dessins approchants : ce sont les avions du jeu,
+     rendus par sa propre fonction de dessin puis découpés en images. La borne
+     montre donc exactement l'appareil qu'on pilote — disque d'hélice, verrière,
+     empennage compris. */
+  .m-ailes .av{width:36px;height:30px;background-repeat:no-repeat;background-size:contain;
+    background-position:center;filter:drop-shadow(0 3px 7px rgba(0,0,0,.6))}
+  /* Les sujets se tiennent dans la moitié droite : à gauche, le voile de
+     lisibilité qui protège le nom du jeu les assombrissait de moitié. */
+  .m-ailes .a1{left:70px;top:38px;transform:rotate(34deg) scale(1);
+    background-image:url("data:image/png;base64,__AVION_ROUGE__")}
+  .m-ailes .a2{left:102px;top:76px;transform:rotate(30deg) scale(.82);
+    background-image:url("data:image/png;base64,__AVION_BLEU__")}
+  .m-ailes .a3{left:78px;top:98px;transform:rotate(37deg) scale(.76);
+    background-image:url("data:image/png;base64,__AVION_OR__")}
+
+  /* Toka : une enchère en cours. Des chiffres et des barres, puisque le jeu se
+     joue sur des valeurs et non sur un terrain. */
+  /* Fiche de joueur : cheveux, visage, puis un maillot à rayures et les lignes
+     de la fiche. Tout tient dans un élément et ses deux pseudo-éléments, ce qui
+     permet à l'ensemble de suivre l'inclinaison de la carte. */
+  .m-toka .fiche{left:11px;top:28px;width:48px;height:70px;border-radius:5px;
+    transform:rotate(-9deg);box-shadow:0 5px 14px rgba(0,0,0,.5);overflow:hidden;
+    background:
+      radial-gradient(circle at 50% 20%, #ab9f8c 0 7.2px, transparent 7.7px),
+      linear-gradient(#f8f4e8,#d5cdba)}
+  .m-toka .fiche::before{content:"";position:absolute;left:6px;right:6px;top:25px;height:22px;
+    border-radius:11px 11px 3px 3px;
+    background:repeating-linear-gradient(90deg, #d63b32 0 5px, #f7f3e6 5px 10px);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.16)}
+  .m-toka .fiche::after{content:"";position:absolute;left:8px;right:8px;bottom:14px;height:2.5px;
+    border-radius:2px;background:#c9992f;
+    box-shadow:0 6px 0 #b3a894, 0 12px 0 #b3a894}
+  /* Le jeu est vert et blanc : la borne reprend la pelouse et le tracé du
+     terrain, sur lesquels se posent la fiche et le montant de l'enchère. */
+  .m-toka .med{left:24px;top:0;bottom:0;width:2px;background:rgba(255,255,255,.2)}
+  .m-toka .rond{right:-30px;top:50%;width:112px;height:112px;margin-top:-56px;
+    border:2px solid rgba(255,255,255,.19);border-radius:50%}
+  .m-toka .chiffre{right:22px;top:24px;font-family:var(--titre);font-weight:700;font-size:40px;
+    line-height:1;color:#fff;letter-spacing:.01em;text-shadow:0 2px 12px rgba(0,0,0,.55)}
+  .m-toka .chiffre b{font-size:19px;opacity:.78;font-weight:700;margin-left:2px}
+  .m-toka .hausse{right:22px;top:64px;font-size:11px;letter-spacing:.14em;
+    color:#dff5d4;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .m-toka .bar{bottom:24px;width:13px;border-radius:3px 3px 0 0;background:#f4faf0}
+  .m-toka .b1{right:92px;height:22px;opacity:.4}
+  .m-toka .b2{right:74px;height:36px;opacity:.55}
+  .m-toka .b3{right:56px;height:29px;opacity:.45}
+  .m-toka .b4{right:38px;height:52px;opacity:.95}
+  .m-toka .b5{right:20px;height:41px;opacity:.7}
+  .m-toka .sol{left:0;right:0;bottom:22px;height:1px;background:rgba(255,255,255,.3)}
+
+  /* ---------- diagnostic ---------- */
+  #l-diag{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.95);z-index:60;padding:18px}
+  #l-diag.on{display:flex}
+  .dgBoite{width:100%;max-width:420px;background:var(--fond2);border:1px solid rgba(255,255,255,.09);
+    border-radius:18px;padding:20px 18px;max-height:88vh;overflow-y:auto}
+  .dgTitre{font-family:var(--titre);font-size:20px;letter-spacing:.14em;text-transform:uppercase;
+    margin:0 0 16px;text-align:center}
+  .dg{display:flex;gap:11px;align-items:flex-start;padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,.06)}
+  .dg .et{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:12px;background:rgba(255,255,255,.08);color:var(--doux)}
+  .dg.ok .et{background:rgba(201,242,74,.2);color:#c9f24a}
+  .dg.ko .et{background:rgba(255,69,58,.2);color:#ff6b60}
+  .dg .ti{margin:0;font-size:13.5px;font-weight:500}
+  .dg .de{margin:2px 0 0;font-size:11.5px;color:var(--faible);line-height:1.4}
+  .dg.ko .de{color:#ff8f86}
+  .dgConc{font-size:13px;line-height:1.5;color:#c9f24a;margin:16px 0 14px;text-align:center;min-height:18px}
+  .dgBtns{display:flex;gap:8px;margin-bottom:8px}
+  .dgB{flex:1;border:0;border-radius:12px;background:rgba(255,255,255,.08);color:var(--texte);
+    cursor:pointer;padding:12px 8px;font-family:var(--sans);font-size:13.5px;font-weight:500}
+  .dgB.plein{width:100%;background:var(--bleu);color:#fff}
+  .dgB:disabled{opacity:.4}
+
+  /* Repère de version : discret, mais suffisant pour vérifier après un envoi
+     que c'est bien la nouvelle version qui est servie et non celle du cache. */
+  .version{flex:none;text-align:center;font-size:9.5px;letter-spacing:.06em;
+    color:rgba(255,255,255,.22);margin:0;padding:0 20px calc(env(safe-area-inset-bottom) + 10px)}
+
+  @media (min-width:620px){ #liste{max-width:540px;margin:0 auto;width:100%} }
+  @media (max-height:680px){
+    .carte{height:128px} .nom{font-size:29px}
+    /* sur un écran court, le rail se resserre lui aussi plutôt que de pousser
+       les bornes hors de l'écran */
+    .jeton{width:116px;height:78px} .nomJ{font-size:17px}
+    .railTitre{margin-top:2px}
+    header{padding-top:calc(env(safe-area-inset-top) + 12px);padding-bottom:10px}
+  }
+  @media (prefers-reduced-motion:reduce){ .carte:active{transform:none} }
+</style>
+</head>
+<body>
+
+<div id="halo"></div>
+
+<div id="hub">
+  <header>
+    <h1>__TITRE__</h1>
+    <p class="sous">__SOUS_TITRE__</p>
+    <div class="outils">
+      <button class="ico" id="b-plein2" title="Plein écran">⛶</button>
+      <button class="ico" id="b-diag" title="Réseau">⚕</button>
+      <button class="ico" id="b-aide" title="À propos">ⓘ</button>
+    </div>
+  </header>
+  <div id="liste"></div>
+  <p class="version">Version __VERSION__ · __DATE__</p>
+</div>
+
+<div id="l-diag">
+  <div class="dgBoite">
+    <p class="dgTitre">Diagnostic réseau</p>
+    <div id="dgListe"></div>
+    <p id="dg-conclusion" class="dgConc"></p>
+    <div class="dgBtns">
+      <button class="dgB" id="dg-relancer">Relancer</button>
+      <button class="dgB" id="dg-copier">Copier le rapport</button>
+    </div>
+    <button class="dgB plein" id="dg-fermer">Fermer</button>
+  </div>
+</div>
+
+
+
+<script>
+/* Tout le script du hub est enfermé dans une fonction.
+   Raison : document.write() remplace le document mais PAS l'espace global du
+   JavaScript. Les déclarations du hub survivaient donc au lancement d'un jeu,
+   et une simple collision de nom — « const $ » déclaré des deux côtés —
+   empêchait le script du jeu de se compiler. Page blanche, sans message. */
+(function(){
+'use strict';
+/*__CATALOGUE__*/
+/*__CATEGORIES__*/
+
+/* PeerJS, stocké une seule fois pour tous les jeux qui l'utilisent */
+const BIBLIO_PEERJS = __PEERJS__;
+
+/* ---------- utilitaires ---------- */
+const $ = s => document.querySelector(s);
+function versTexte(b64){
+  const bin = atob(b64);
+  const oct = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) oct[i] = bin.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(oct);
+}
+function record(cle){
+  if (!cle) return null;
+  try { const v = localStorage.getItem(cle); const n = v ? parseFloat(v) : null;
+        return n && isFinite(n) ? n : null; } catch(e){ return null; }
+}
+const NOM_CAT = { sport:'Sport', reflex:'Réflexe', mind:'Réflexion' };
+
+/* ---------- construction de la liste ---------- */
+let filtre = 'tout';
+
+/* Les filtres reviendront quand la collection dépassera cinq jeux : à trois,
+   ils occupent une ligne entière pour trier ce qui tient déjà sur un écran. */
+function dessinerFiltres(){}
+/* Chaque borne montre une miniature de son jeu : c'est ce qui donne envie
+   d'appuyer, bien plus qu'un pictogramme abstrait. */
+const MINIS = {
+  lucarne: '<i class="sol"></i><i class="net"></i><i class="cage"></i>' +
+           '<i class="g g1"></i><i class="g g2"></i><i class="g g3"></i><i class="b"></i>',
+  steeple: '<i class="pre"></i><i class="tonte"></i><i class="lice l1"></i><i class="lice l2"></i>' +
+           '<i class="ch h1"></i><i class="ch h2"></i><i class="ch h3"></i><i class="ch h4"></i>' +
+           '<i class="ch h5"></i><i class="ch h6"></i>' +
+           '<i class="motte m1"></i><i class="motte m2"></i>' +
+           '<i class="motte m3"></i><i class="motte m4"></i>',
+  ailes:   '<i class="sol"></i><i class="champ"></i><i class="mat"></i><i class="damier"></i>' +
+           '<i class="av a1"></i><i class="av a2"></i><i class="av a3"></i>',
+  baby:    '<i class="feutre"></i><i class="mid"></i><i class="rond"></i>' +
+           '<i class="rod r1"></i><i class="rod r2"></i>' +
+           '<i class="p p1"></i><i class="p p2"></i><i class="p p3"></i><i class="p p4"></i>' +
+           '<i class="b"></i>',
+  orbit:   '<i class="espace"></i>' +
+           '<i class="etl e1"></i><i class="etl e2"></i><i class="etl e3"></i>' +
+           '<i class="etl e4"></i><i class="etl e5"></i>' +
+           '<i class="astre a1"></i><i class="astre a2"></i>' +
+           '<i class="balise"></i>' +
+           '<i class="arc"></i><i class="sondeO"></i>',
+  bank:    '<i class="aire"></i><i class="murB m1"></i><i class="murB m2"></i>' +
+           '<i class="cibleB"></i>' +
+           '<i class="seg s1"></i><i class="seg s2"></i><i class="seg s3"></i>' +
+           '<i class="balleB"></i>',
+  boules:  '<i class="sable"></i><i class="cercleB"></i>' +
+           '<i class="cochon"></i>' +
+           '<i class="bl b1"></i><i class="bl b2"></i><i class="bl b3"></i>' +
+           '<i class="br r1"></i><i class="br r2"></i>' +
+           '<i class="trainee"></i>',
+  cross:   '<i class="campagne"></i><i class="champ ch1"></i><i class="champ ch2"></i>' +
+           '<i class="boqueteau bq1"></i><i class="boqueteau bq2"></i>' +
+           '<i class="mare"></i>' +
+           '<i class="tronc tr1"></i><i class="tronc tr2"></i><i class="buis"></i>' +
+           '<i class="chev"></i>',
+  blitz:   '<i class="plaine"></i><i class="riviere"></i><i class="pont"></i>' +
+           '<i class="bois bo1"></i><i class="bois bo2"></i>' +
+           '<i class="reg br1"></i><i class="reg br2"></i><i class="reg br3"></i>' +
+           '<i class="reg rr1"></i><i class="reg rr2"></i><i class="reg rr3"></i>' +
+           '<i class="fum f1"></i><i class="fum f2"></i>',
+  toka:    '<i class="med"></i><i class="rond"></i><i class="fiche"></i><i class="sol"></i>' +
+           '<i class="bar b1"></i><i class="bar b2"></i><i class="bar b3"></i>' +
+           '<i class="bar b4"></i><i class="bar b5"></i>' +
+           '<i class="chiffre">100<b>M€</b></i><i class="hausse">▲ ENCHÈRE</i>'
+};
+/* QUATRE BORNES PLEINES, puis un rail. Six bornes empilées obligeaient à
+   défiler pour tout voir, et chacune y perdait de la hauteur : l'accueil
+   n'avait plus de premier regard. Les quatre premières gardent donc toute leur
+   place, et les suivantes passent dans une bande qui défile horizontalement.
+   Le rail absorbera les jeux à venir sans jamais rétrécir les quatre têtes. */
+/* Tous les jeux au MÊME FORMAT. Le rail était né du besoin de faire tenir six
+   jeux sans écraser les quatre premiers ; avec huit, il créait surtout deux
+   catégories — les mis en avant et les autres. Une seule liste, un seul cadre,
+   et l'on fait défiler : chaque jeu a le même droit de cité. */
+const EN_PLEIN = 99;
+
+function borne(j){
+  const dispo = !!j.b64;
+  const rec = record(j.recordCle);
+  const t = j.teinte || { haut:'#2a2724', bas:'#141210', accent:'#8fa7b0', nom:'#f2efe9' };
+  const bouts = [ j.cats.map(c=> NOM_CAT[c] || c).join(' · '), j.joueurs + ' joueurs' ];
+  if (j.enligne) bouts.push('en ligne');
+  if (!dispo) bouts.push('bientôt');
+  const voile = 'background:linear-gradient(100deg,' + t.bas + ' 6%,' +
+                t.bas + 'd8 32%,' + t.bas + '3a 62%,' + t.bas + '06 100%)';
+  const acc = 'rgba(' + [1,3,5].map(i=> parseInt(t.accent.substr(i,2),16)).join(',') + ',.42)';
+  return '<div class="carte' + (dispo ? '' : ' bientot') + '" data-id="' + j.id + '"' +
+    ' style="--acc:' + acc + ';background:linear-gradient(150deg,' + t.haut + ',' + t.bas + ')">' +
+    '<div class="mini m-' + j.vignette + '">' + (MINIS[j.vignette] || '') + '</div>' +
+    '<div class="voile" style="' + voile + '"></div>' +
+    '<div class="lueur"></div>' +
+    (rec ? '<div class="record" style="color:' + t.accent + '">🏆 ' + rec + ' ' +
+           j.recordSuffixe + '</div>' : '') +
+    '<div class="contenu">' +
+    '<p class="nom" style="color:' + t.nom + '">' + j.nom + '</p>' +
+    '<p class="meta">' + bouts.join(' · ') + '</p></div></div>';
+}
+
+/* Version compacte, pour le rail : le nom et l'illustration, rien de plus. */
+function jeton(j){
+  const dispo = !!j.b64;
+  const t = j.teinte || { haut:'#2a2724', bas:'#141210', accent:'#8fa7b0', nom:'#f2efe9' };
+  const voile = 'background:linear-gradient(180deg,' + t.bas + '00 34%,' + t.bas + 'e8 100%)';
+  const acc = 'rgba(' + [1,3,5].map(i=> parseInt(t.accent.substr(i,2),16)).join(',') + ',.42)';
+  return '<div class="jeton' + (dispo ? '' : ' bientot') + '" data-id="' + j.id + '"' +
+    ' style="--acc:' + acc + ';background:linear-gradient(150deg,' + t.haut + ',' + t.bas + ')">' +
+    '<div class="miniJ m-' + j.vignette + '">' + (MINIS[j.vignette] || '') + '</div>' +
+    '<div class="voile" style="' + voile + '"></div>' +
+    '<p class="nomJ" style="color:' + t.nom + '">' + j.nom + '</p></div>';
+}
+
+function dessinerListe(){
+  const vus = CATALOGUE.filter(j=> !j.masque);
+  const tetes = vus.slice(0, EN_PLEIN), reste = vus.slice(EN_PLEIN);
+  $('#liste').innerHTML =
+    tetes.map(borne).join('') +
+    (reste.length
+      ? '<p class="railTitre">Aussi sur ARKAD</p>' +
+        '<div class="rail">' + reste.map(jeton).join('') + '</div>'
+      : '');
+  return;
+  $('#liste').innerHTML = CATALOGUE.map(j=>{
+    const dispo = !!j.b64;
+    const rec = record(j.recordCle);
+    const t = j.teinte || { haut:'#2a2724', bas:'#141210', accent:'#8fa7b0', nom:'#f2efe9' };
+    const bouts = [ j.cats.map(c=> NOM_CAT[c] || c).join(' · '), j.joueurs + ' joueurs' ];
+    if (j.enligne) bouts.push('en ligne');
+    if (!dispo) bouts.push('bientôt');
+    /* le voile part de la couleur du jeu à gauche et s'efface sur la miniature,
+       pour que le nom reste lisible quoi qu'affiche l'illustration */
+    /* Le voile protège le nom du jeu, à gauche. Il n'a rien à protéger sur la
+       droite : on le laisse s'y effacer presque complètement, sans quoi il
+       éteint les illustrations d'un cinquième à un tiers. */
+    const voile = 'background:linear-gradient(100deg,' + t.bas + ' 6%,' +
+                  t.bas + 'd8 32%,' + t.bas + '3a 62%,' + t.bas + '06 100%)';
+    const acc = 'rgba(' + [1,3,5].map(i=> parseInt(t.accent.substr(i,2),16)).join(',') + ',.42)';
+    return '<div class="carte' + (dispo ? '' : ' bientot') + '" data-id="' + j.id + '"' +
+      ' style="--acc:' + acc + ';background:linear-gradient(150deg,' + t.haut + ',' + t.bas + ')">' +
+      '<div class="mini m-' + j.vignette + '">' + (MINIS[j.vignette] || '') + '</div>' +
+      '<div class="voile" style="' + voile + '"></div>' +
+      '<div class="lueur"></div>' +
+      (rec ? '<div class="record" style="color:' + t.accent + '">🏆 ' + rec + ' ' +
+             j.recordSuffixe + '</div>' : '') +
+      '<div class="contenu">' +
+      '<p class="nom" style="color:' + t.nom + '">' + j.nom + '</p>' +
+      '<p class="meta">' + bouts.join(' · ') + '</p></div></div>';
+  }).join('');
+}
+
+$('#liste').addEventListener('click', e=>{
+  const c = e.target.closest('.carte, .jeton');
+  if (!c || c.classList.contains('bientot')) return;
+  ouvrir(c.dataset.id);
+});
+
+/* ---------- lancement d'un jeu ----------
+   Chaque jeu vit dans une iframe séparée : ses variables, son CSS et ses
+   identifiants ne peuvent pas entrer en conflit avec ceux des autres. */
+/* Le jeu remplace entièrement la page, au premier plan du navigateur.
+   Aucune iframe n'est utilisée : c'est le seul moyen d'être certain que rien
+   dans le bac à sable ne gêne le réseau du multijoueur. Le retour se fait par
+   un simple rechargement, qui ramène ce hub. */
+const RETOUR_INJECTE =
+  /* Capteur d'erreur : si le jeu échoue au démarrage, on affiche le message
+     au lieu d'une page blanche. Sans lui, un plantage est indiscernable d'un
+     problème de mise en page. */
+  '<style>#arkadErr{position:fixed;left:0;right:0;top:0;z-index:2147483646;' +
+  'background:#7a1520;color:#ffe9e9;font:12px/1.45 -apple-system,system-ui,sans-serif;' +
+  'padding:10px 12px;display:none;white-space:pre-wrap;word-break:break-word;' +
+  'max-height:52vh;overflow:auto}#arkadErr b{color:#ffd0d0}</style>' +
+  '<div id="arkadErr"></div>' +
+  '<scr' + 'ipt>(function(){var z=document.getElementById("arkadErr");' +
+  'function dire(t){z.style.display="block";z.innerHTML+=t+"<br>";}' +
+  'window.addEventListener("error",function(e){' +
+  'dire("<b>Erreur :</b> "+(e.message||e.type)+"<br>"+(e.filename||"")+" ligne "+(e.lineno||"?"));});' +
+  'window.addEventListener("unhandledrejection",function(e){' +
+  'dire("<b>Promesse rejetée :</b> "+(e.reason&&e.reason.message||e.reason));});' +
+  'setTimeout(function(){var a=document.getElementById("app")||document.body;' +
+  'if(a&&a.children.length===0&&!z.innerHTML)' +
+  'dire("<b>Le jeu ne s\\u0027est pas construit</b> — aucune erreur signalée.");},2500);' +
+  '})();</scr' + 'ipt>' +
+  '<style>#arkadRetour{position:fixed;left:calc(env(safe-area-inset-left) + 6px);' +
+  'top:calc(env(safe-area-inset-top) + 6px);z-index:2147483647;width:34px;height:30px;' +
+  'display:flex;align-items:center;justify-content:center;border-radius:9px;' +
+  'background:rgba(8,12,20,.72);color:#8fb6ff;font:600 15px -apple-system,system-ui,sans-serif;' +
+  '-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);cursor:pointer;' +
+  'transition:opacity .4s;opacity:1}#arkadRetour.discret{opacity:.28}</style>' +
+  '<div id="arkadRetour">&#9664;</div>' +
+  '<scr' + 'ipt>(function(){var b=document.getElementById("arkadRetour");' +
+  'function sortir(){location.reload();}' +
+  'b.addEventListener("click",sortir);' +
+  'b.addEventListener("pointerdown",function(e){e.stopPropagation();});' +
+  'setTimeout(function(){b.classList.add("discret");},3500);' +
+  'b.addEventListener("pointerenter",function(){b.classList.remove("discret");});' +
+  'try{history.pushState({jeu:1},"");}catch(e){}' +
+  'window.addEventListener("popstate",sortir);})();</scr' + 'ipt>';
+
+/* Lancement d'un jeu SANS document.write.
+   document.open() jette le document d'origine et en fabrique un nouveau. Sur
+   Safari iOS, ce document hérite d'une origine opaque : les balises
+   <script src> y fonctionnent encore, mais fetch et WebSocket sont refusés —
+   « The operation is insecure ». C'est ce qui empêchait tout jeu en ligne
+   lancé depuis le hub de sortir sur internet, alors que le même fichier ouvert
+   directement fonctionnait.
+   On remplace donc le CONTENU du document au lieu du document lui-même :
+   l'origine, le contexte sécurisé et les permissions sont conservés. */
+function ouvrir(id){
+  const j = CATALOGUE.find(x=> x.id === id);
+  if (!j || !j.b64) return;
+  let page = versTexte(j.b64);
+  page = page.replace('<!--ARKAD:PEERJS-->', BIBLIO_PEERJS);
+  page = page.replace(/<\/body>/i, RETOUR_INJECTE + '</body>');
+
+  const doc = new DOMParser().parseFromString(page, 'text/html');
+
+  /* on vide l'ancien contenu, en gardant le document vivant */
+  document.head.innerHTML = '';
+  document.body.innerHTML = '';
+  document.documentElement.setAttribute('lang',
+    doc.documentElement.getAttribute('lang') || 'fr');
+
+  /* En-tête : titre, méta, styles. Les scripts de l'en-tête sont MIS DE CÔTÉ,
+     pas jetés — c'est là que vit PeerJS. Les avoir ignorés dans ma première
+     version du chargeur privait tous les jeux de leur bibliothèque réseau. */
+  const scripts = [];
+  [...doc.head.children].forEach(el=>{
+    if (el.tagName === 'SCRIPT'){ scripts.push(el); return; }
+    document.head.appendChild(document.importNode(el, true));
+  });
+  document.title = doc.title || 'ARKAD';
+
+  /* corps : tout sauf les scripts, qui ne s'exécuteraient pas par importNode */
+  [...doc.body.childNodes].forEach(n=>{
+    if (n.nodeType === 1 && n.tagName === 'SCRIPT'){ scripts.push(n); return; }
+    document.body.appendChild(document.importNode(n, true));
+  });
+
+  /* puis les scripts, recréés pour être réellement exécutés, dans l'ordre */
+  window.__arkadDom = true;
+  const lancer = i=>{
+    if (i >= scripts.length) return;
+    const src = scripts[i];
+    const s = document.createElement('script');
+    [...src.attributes].forEach(a=> s.setAttribute(a.name, a.value));
+    if (src.src){ s.onload = s.onerror = ()=> lancer(i+1); document.body.appendChild(s); return; }
+    s.textContent = src.textContent;
+    document.body.appendChild(s);
+    lancer(i+1);
+  };
+  lancer(0);
+}
+
+/* ---------- plein écran ---------- */
+function bascule(){
+  const e = document.documentElement;
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement){
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const f = e.requestFullscreen || e.webkitRequestFullscreen;
+      if (f){ const r = f.call(e); if (r && r.catch) r.catch(()=>{}); }
+      else alert("Le plein écran n'est pas disponible sur ce navigateur. Sur iPhone, ajoute la page à l'écran d'accueil depuis le menu Partager.");
+    }
+  } catch(err){}
+}
+$('#b-plein2').onclick = bascule;
+$('#b-aide').onclick = ()=> alert(
+  "__TITRE__ — un seul fichier, plusieurs jeux.\n\n" +
+  "• Chaque jeu s'ouvre dans son propre espace, isolé des autres.\n" +
+  "• Version __VERSION__, publiée le __DATE__.\n" +
+  "• Les records sont conservés sur cet appareil.\n" +
+  "• Ajoute la page à ton écran d'accueil pour l'ouvrir comme une application.\n\n" +
+  "Filtre par catégorie avec les pastilles du haut."
+);
+
+/* manifeste d'application web, fabriqué à la volée : indispensable pour
+   l'installation sur Android. iOS se sert de apple-touch-icon ci-dessus. */
+(function manifeste(){
+  try {
+    const i192 = document.getElementById('ico192');
+    const icone = (i192 || document.querySelector('link[rel=icon]')).href;
+    const m = { name:'__TITRE__', short_name:'__TITRE__', start_url:'.',
+      display:'standalone', orientation:'portrait',
+      background_color:'#000000', theme_color:'#000000',
+      icons:[{ src:icone, sizes:'192x192', type:'image/png', purpose:'any' }] };
+    const l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = URL.createObjectURL(new Blob([JSON.stringify(m)], {type:'application/manifest+json'}));
+    document.head.appendChild(l);
+  } catch(e){}
+})();
+
+
+/* ============================================================================
+   DIAGNOSTIC RÉSEAU
+   Six vérifications, de la plus basique à la plus fine. La dernière rejoue le
+   test décisif à l'intérieur d'une iframe identique à celle des jeux : si elle
+   échoue alors que la précédente réussit, c'est le bac à sable qui bloque ;
+   si les deux échouent, c'est le serveur de rendez-vous.
+   ============================================================================ */
+const SERVEUR = { host:'0.peerjs.com', port:443, path:'/' };
+const RAPPORT = [];
+
+function ligneDiag(id, titre){
+  return '<div class="dg" id="dg-' + id + '"><span class="et">…</span>' +
+         '<div><p class="ti">' + titre + '</p><p class="de">en attente</p></div></div>';
+}
+function majDiag(id, etat, detail){
+  const e = document.getElementById('dg-' + id);
+  if (!e) return;
+  e.className = 'dg ' + etat;
+  e.querySelector('.et').textContent = etat === 'ok' ? '✓' : etat === 'ko' ? '✗' : '…';
+  e.querySelector('.de').textContent = detail;
+  RAPPORT.push((etat === 'ok' ? 'OK  ' : etat === 'ko' ? 'ÉCHEC ' : '..  ') +
+               e.querySelector('.ti').textContent + ' — ' + detail);
+}
+const minuteur = (p, ms, quoi)=> Promise.race([p,
+  new Promise((_, rej)=> setTimeout(()=> rej(new Error('délai dépassé (' + quoi + ')')), ms))]);
+
+async function testInternet(){
+  try {
+    await minuteur(fetch('https://unpkg.com/peerjs@1.5.4/package.json', { cache:'no-store' }), 8000, 'unpkg');
+    majDiag('net', 'ok', 'le réseau sort bien vers internet');
+    return true;
+  } catch(e){ majDiag('net', 'ko', 'aucune sortie internet : ' + e.message); return false; }
+}
+function testBibli(){
+  if (window.Peer){ majDiag('lib', 'ok', 'PeerJS chargé depuis unpkg'); return true; }
+  majDiag('lib', 'ko', 'la bibliothèque PeerJS ne s\'est pas chargée'); return false;
+}
+async function testHttp(){
+  const u = 'https://' + SERVEUR.host + '/peerjs/id?ver=1&key=peerjs&ts=' + Date.now();
+  try {
+    const r = await minuteur(fetch(u, { cache:'no-store' }), 9000, 'http');
+    const t = (await r.text()).trim();
+    if (r.ok && t){ majDiag('http', 'ok', 'le serveur répond et attribue un identifiant'); return true; }
+    majDiag('http', 'ko', 'réponse inattendue du serveur (code ' + r.status + ')'); return false;
+  } catch(e){ majDiag('http', 'ko', 'serveur injoignable en HTTPS : ' + e.message); return false; }
+}
+function testSocket(){
+  return new Promise(res=>{
+    const jeton = Math.random().toString(36).slice(2, 10);
+    const u = 'wss://' + SERVEUR.host + ':' + SERVEUR.port +
+              '/peerjs?key=peerjs&id=diag' + jeton + '&token=' + jeton + '&version=1.5.4';
+    let fait = false;
+    let ws;
+    const fin = (ok, txt)=>{ if (fait) return; fait = true;
+      try { if (ws) ws.close(); } catch(e){}
+      majDiag('ws', ok ? 'ok' : 'ko', txt); res(ok); };
+    try { ws = new WebSocket(u); } catch(e){ return fin(false, 'création refusée : ' + e.message); }
+    ws.onopen  = ()=> fin(true, 'liaison temps réel établie');
+    ws.onerror = ()=> fin(false, 'liaison temps réel refusée ou filtrée');
+    ws.onclose = ev=> fin(false, 'liaison fermée par le réseau (code ' + ev.code + ')');
+    setTimeout(()=> fin(false, 'aucune réponse en 10 secondes'), 10000);
+  });
+}
+function testPeer(){
+  return new Promise(res=>{
+    if (!window.Peer){ majDiag('peer', 'ko', 'PeerJS absent'); return res(false); }
+    let p, fait = false;
+    const fin = (ok, txt)=>{ if (fait) return; fait = true;
+      try { if (p) p.destroy(); } catch(e){}
+      majDiag('peer', ok ? 'ok' : 'ko', txt); res(ok); };
+    try {
+      p = new Peer(undefined, { host:SERVEUR.host, port:SERVEUR.port, path:SERVEUR.path,
+                                secure:true, debug:0 });
+    } catch(e){ return fin(false, 'création impossible : ' + e.message); }
+    p.on('open', id=> fin(true, 'inscrit sous l\'identifiant ' + String(id).slice(0, 12) + '…'));
+    p.on('error', er=> fin(false, 'refus du serveur [' + ((er && er.type) || '?') + ']'));
+    setTimeout(()=> fin(false, 'aucune réponse en 12 secondes'), 12000);
+  });
+}
+/* le même test, mais enfermé dans une iframe srcdoc comme les jeux le sont */
+function testIframe(){
+  return new Promise(res=>{
+    let fait = false, f;
+    const fin = (ok, txt)=>{ if (fait) return; fait = true;
+      window.removeEventListener('message', ecoute);
+      try { if (f) f.remove(); } catch(e){}
+      majDiag('cage', ok ? 'ok' : 'ko', txt); res(ok); };
+    function ecoute(ev){
+      if (!ev.data || ev.data.quoi !== 'diag-iframe') return;
+      fin(ev.data.ok, ev.data.ok ? 'le réseau fonctionne aussi dans une iframe'
+                                 : 'bloqué dans l\'iframe : ' + ev.data.txt);
+    }
+    window.addEventListener('message', ecoute);
+    f = document.createElement('iframe');
+    f.style.cssText = 'width:0;height:0;border:0;position:absolute;left:-9999px';
+    f.setAttribute('allow', 'autoplay; clipboard-write');
+    f.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+      '<scr' + 'ipt src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></scr' + 'ipt></head>' +
+      '<body><scr' + 'ipt>' +
+      'function dire(ok,txt){parent.postMessage({quoi:"diag-iframe",ok:ok,txt:txt},"*");}' +
+      'setTimeout(function(){' +
+      ' if(!window.Peer){dire(false,"PeerJS absent dans une iframe");return;}' +
+      ' try{var p=new Peer(undefined,{host:"' + SERVEUR.host + '",port:' + SERVEUR.port +
+      ',path:"' + SERVEUR.path + '",secure:true,debug:0});' +
+      ' p.on("open",function(){dire(true,"");try{p.destroy();}catch(e){}});' +
+      ' p.on("error",function(e){dire(false,(e&&e.type)||"inconnu");});' +
+      ' }catch(e){dire(false,e.message);}' +
+      '},400);</scr' + 'ipt></body></html>';
+    document.body.appendChild(f);
+    setTimeout(()=> fin(false, 'aucune réponse de l\'iframe en 15 secondes'), 15000);
+  });
+}
+
+async function lancerDiag(){
+  RAPPORT.length = 0;
+  RAPPORT.push('ARKAD — diagnostic réseau');
+  RAPPORT.push(new Date().toISOString());
+  RAPPORT.push('page : ' + location.href);
+  RAPPORT.push('navigateur : ' + navigator.userAgent);
+  ['net','lib','http','ws','peer','cage'].forEach(id=>{
+    const e = document.getElementById('dg-' + id);
+    if (e){ e.className = 'dg'; e.querySelector('.et').textContent = '…';
+            e.querySelector('.de').textContent = 'en cours'; }
+  });
+  const b = document.getElementById('dg-relancer');
+  if (b) b.disabled = true;
+  await testInternet();
+  testBibli();
+  await testHttp();
+  await testSocket();
+  await testPeer();
+  await testIframe();
+  if (b) b.disabled = false;
+  const c = document.getElementById('dg-conclusion');
+  if (c) c.textContent = conclusion();
+}
+function conclusion(){
+  const etat = id=>{ const e = document.getElementById('dg-' + id); return e ? e.className : ''; };
+  const ko = id=> etat(id).indexOf('ko') >= 0;
+  if (ko('net'))  return "Le réseau ne sort pas du tout. Ce n'est pas le jeu.";
+  if (ko('lib'))  return "PeerJS ne se charge pas : il faudra l'embarquer dans le fichier.";
+  if (ko('http') && ko('ws')) return "Le serveur de rendez-vous public est injoignable. Il faut en changer.";
+  if (ko('ws') && !ko('http')) return "Le HTTPS passe mais pas le temps réel : un filtrage bloque les WebSockets.";
+  if (ko('peer') && !ko('ws')) return "Le serveur répond mais refuse l'inscription. Serveur saturé.";
+  if (ko('cage') && !ko('peer')) return "Hors iframe tout passe. Les jeux ne sont plus dans une iframe : ça devrait marcher.";
+  if (!ko('cage')) return "Tout est vert. Le multijoueur devrait fonctionner.";
+  return "Résultat partiel, envoie-moi le rapport.";
+}
+function copierRapport(btn){
+  const txt = RAPPORT.join('\n') + '\n=> ' + conclusion();
+  const fini = ok=>{ btn.textContent = ok ? '✓ Rapport copié' : 'Copie refusée';
+    setTimeout(()=>{ btn.textContent = 'Copier le rapport'; }, 1800); };
+  const repli = ()=>{
+    try {
+      const z = document.createElement('textarea');
+      z.value = txt; z.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(z); z.focus(); z.select();
+      const ok = document.execCommand('copy'); document.body.removeChild(z); fini(ok);
+    } catch(e){ fini(false); }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(txt).then(()=> fini(true), repli);
+  else repli();
+}
+
+$('#b-diag').onclick = ()=>{
+  $('#l-diag').classList.add('on');
+  lancerDiag();
+};
+$('#dg-fermer').onclick = ()=> $('#l-diag').classList.remove('on');
+$('#dg-relancer').onclick = lancerDiag;
+$('#dg-copier').onclick = e=> copierRapport(e.currentTarget);
+
+document.getElementById('dgListe').innerHTML =
+  ligneDiag('net',  'Sortie internet') +
+  ligneDiag('lib',  'Chargement de PeerJS') +
+  ligneDiag('http', 'Serveur de rendez-vous en HTTPS') +
+  ligneDiag('ws',   'Liaison temps réel (WebSocket)') +
+  ligneDiag('peer', 'Inscription auprès du serveur') +
+  ligneDiag('cage', 'Le même test enfermé dans une iframe');
+
+dessinerFiltres();
+dessinerListe();
+if (location.hash){ try { history.replaceState(null, '', location.pathname); } catch(e){} }
+})();
+</script>
+</body>
+</html>

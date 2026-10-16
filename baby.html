@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#221408">
+<title>KICKR</title>
+<style>
+  :root{
+    --feutre:#1b3d2c;
+    --bois:#7a4f2b;
+    --bois-fonce:#33200f;
+    --laiton:#d9a441;
+    --craie:#eef2e6;
+    --rouge:#e04b3c;
+    --bleu:#3d7fd6;
+    --display:"Avenir Next Condensed","HelveticaNeue-CondensedBold","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+    /* Une condensée est étroite et anguleuse : c'est une typographie de titre
+       de presse, pas de jeu de balle. « ui-rounded » appelle la variante
+       arrondie de la police système — SF Pro Rounded sur iPhone — dessinée
+       avec des terminaisons circulaires. */
+    --rond:ui-rounded,"SF Pro Rounded","Varela Round","Hiragino Maru Gothic ProN",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#160d05;
+    font-family:system-ui,-apple-system,sans-serif;color:var(--craie);
+    touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
+  #scene{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  canvas{display:block;border-radius:10px;
+    box-shadow:0 0 0 11px var(--bois),0 0 0 14px var(--bois-fonce),0 24px 60px rgba(0,0,0,.7)}
+
+  /* ---- interface : mêmes principes que Lucarne, habillés en bois et laiton ----
+     Panneaux sombres et plats, boutons à lèvre, réglages en pastilles.
+     Le bois n'est plus la matière des panneaux, il devient une couleur d'accent. */
+  .layer{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 12%, #2a1a0d 0%, #0b0703 66%);
+    padding:16px;z-index:10}
+  .layer.on{display:flex}
+  .layer.sombre{background:rgba(8,5,2,.94)}
+  .panneau{width:100%;max-width:400px;text-align:center;background:none;border:0;
+    box-shadow:none;padding:0}
+  h1{font-family:var(--rond);font-weight:800;font-size:clamp(50px,16vw,80px);
+    letter-spacing:.12em;margin:0;line-height:.9;color:var(--craie);
+    text-shadow:0 0 40px rgba(217,164,65,.3)}
+  .sur{font-family:var(--display);letter-spacing:.24em;text-transform:uppercase;
+    font-size:10.5px;color:var(--laiton);margin:8px 0 0}
+  .regle{font-size:14px;line-height:1.55;color:#cdbfa9;margin:18px 0 20px}
+  .regle b{color:var(--laiton);font-weight:600}
+
+  button{font-family:var(--display);letter-spacing:.1em;text-transform:uppercase;
+    font-weight:700;border:0;border-radius:16px;cursor:pointer;color:#231405;
+    background:linear-gradient(var(--laiton),#b8862c);box-shadow:0 5px 0 #6f4f14;
+    padding:19px 14px;font-size:26px;width:100%;margin-bottom:10px}
+  button:active{transform:translateY(4px);box-shadow:0 1px 0 #6f4f14}
+  button.b2{background:rgba(255,255,255,.06);color:#e4d6bf;box-shadow:none;
+    border:1px solid rgba(255,255,255,.14);border-radius:13px;font-size:15px;padding:13px 10px}
+  button:focus-visible{outline:3px solid var(--craie);outline-offset:2px}
+
+  .reglages{margin-top:16px;border-top:1px solid rgba(255,255,255,.09);padding-top:14px}
+  .ligne{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ligne span{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;
+    font-size:10.5px;color:#9a8b76;width:58px;text-align:left;flex:none}
+  .seg{display:flex;gap:5px;flex:1}
+  .seg button{margin:0;flex:1;padding:11px 4px;font-size:12.5px;border-radius:11px;
+    background:rgba(255,255,255,.05);color:#c6b69d;box-shadow:none;
+    border:1px solid rgba(255,255,255,.09)}
+  .seg button.on{background:var(--laiton);color:#231405;border-color:transparent}
+  .seg button:active{transform:none}
+  .etat{font-size:11px;line-height:1.45;color:#9a8b76;margin:9px 0 0;min-height:13px}
+  .duo{display:flex;gap:8px;margin-top:4px}
+  .duo button{margin:0}
+  .renverse{transform:rotate(180deg);margin-bottom:14px}
+  .gagnant{font-family:var(--rond);font-weight:800;letter-spacing:.02em;text-transform:uppercase;
+    font-size:23px;margin:0 0 8px}
+  .chiffres{font-family:var(--rond);font-weight:800;font-size:84px;letter-spacing:0;line-height:.9;
+    margin:0;color:var(--laiton)}
+  .manches{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8d7f6b;
+    margin:8px 0 22px}
+  #pause-btn{position:fixed;top:50%;right:0;transform:translateY(-50%);
+    width:24px;height:58px;border-radius:9px 0 0 9px;background:rgba(0,0,0,.4);
+    display:none;align-items:center;justify-content:center;color:#e9d9c2;font-size:13px;
+    letter-spacing:2px;z-index:5}
+  #pause-btn.on{display:flex}
+  #astuce{position:fixed;left:0;right:0;bottom:6px;text-align:center;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:#8a6a45;display:none}
+  @media (min-aspect-ratio:1/1){#astuce{display:block}}
+  @media (prefers-reduced-motion:reduce){button:active{transform:none}}
+
+
+  /* ===== ARKAD STUDIO — refonte graphique KICKR ===== */
+  html,body{background:
+    radial-gradient(circle at 50% 18%,rgba(231,172,72,.16),transparent 32%),
+    linear-gradient(145deg,#241306 0%,#0a0502 72%)}
+  #scene::before{content:"";position:fixed;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(115deg,rgba(255,255,255,.018) 0 1px,transparent 1px 7px);
+    mix-blend-mode:screen;opacity:.55}
+  canvas{border-radius:18px;
+    box-shadow:0 0 0 5px #241205,0 0 0 14px #8b572c,0 0 0 18px #2a1307,
+      0 28px 80px rgba(0,0,0,.82),inset 0 0 28px rgba(0,0,0,.55)}
+  .layer{background:
+    radial-gradient(circle at 50% 13%,rgba(232,181,83,.20),transparent 25%),
+    linear-gradient(160deg,#2b1809 0%,#100804 58%,#050302 100%)}
+  .layer::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.28;
+    background:repeating-linear-gradient(105deg,rgba(255,255,255,.035) 0 1px,transparent 1px 9px)}
+  .panneau{position:relative;padding:28px 22px 24px;border-radius:28px;
+    background:linear-gradient(145deg,rgba(48,27,12,.92),rgba(14,8,4,.92));
+    border:1px solid rgba(240,190,91,.24);
+    box-shadow:0 24px 70px rgba(0,0,0,.62),inset 0 1px rgba(255,255,255,.08)}
+  .panneau::before{content:"";position:absolute;inset:8px;border-radius:21px;
+    border:1px solid rgba(255,255,255,.035);pointer-events:none}
+  h1{background:linear-gradient(180deg,#fff8e8 0%,#e6c987 55%,#a46d24 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 5px 0 rgba(65,32,7,.75));text-shadow:none}
+  .sur{color:#f0bd58;text-shadow:0 0 18px rgba(240,189,88,.28)}
+  .regle{color:#d8c8af}
+  button{position:relative;overflow:hidden;border:1px solid rgba(255,244,205,.28);
+    background:linear-gradient(180deg,#f6ca68 0%,#d99b35 54%,#ad6d1d 100%);
+    box-shadow:0 6px 0 #683d10,0 12px 24px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.45)}
+  button::after{content:"";position:absolute;left:10%;right:10%;top:4px;height:38%;border-radius:999px;
+    background:linear-gradient(rgba(255,255,255,.22),transparent);pointer-events:none}
+  button.b2{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.025));
+    border-color:rgba(232,188,102,.2);color:#eadcc4}
+  .seg button.on{background:linear-gradient(180deg,#f1c768,#c98a2d);box-shadow:inset 0 1px rgba(255,255,255,.35)}
+  #pause-btn{right:8px;border-radius:12px;background:rgba(26,12,4,.76);
+    border:1px solid rgba(232,188,102,.22);backdrop-filter:blur(8px)}
+  #astuce{color:#b58953;text-shadow:0 2px 8px #000}
+
+
+  .reglesLangue{display:flex;gap:6px;margin:0 0 14px}
+  .reglesLangue .lg{flex:1;padding:9px 4px;border:1px solid rgba(255,255,255,.13);
+    border-radius:10px;background:rgba(255,255,255,.05);color:#a9b8a9;cursor:pointer;
+    font-family:var(--display,system-ui);font-size:11.5px;letter-spacing:.14em;
+    text-transform:uppercase}
+  .reglesLangue .lg.on{background:rgba(255,255,255,.9);color:#141a12;border-color:transparent}
+  .reglesListe{margin:0;padding:0 0 0 22px;text-align:left;font-size:13.5px;line-height:1.6}
+  .reglesListe li{margin-bottom:9px;color:#d6ded2}
+  .reglesListe li::marker{color:rgba(255,255,255,.4);font-size:11px}
+</style>
+</head>
+<body>
+
+<div id="scene"><canvas id="cv"></canvas></div>
+<div id="pause-btn">❙❙</div>
+<div id="astuce">Mieux en portrait, la tablette posée entre vous</div>
+
+<!-- MENU -->
+<div class="layer on" id="l-menu">
+  <div class="panneau">
+    <h1>KICKR</h1>
+    <p class="sur">Le baby-foot à un doigt</p>
+    <p class="regle">Glisse ton doigt dans ta moitié d'écran : ta barre suit.<br>
+      <b>Tes deux joueurs sont sur la même barre</b> — couvrir un côté ouvre l'autre.</p>
+    <button id="b-duo">2 joueurs</button>
+    <button id="b-solo" class="b2">Solo — entraînement</button>
+    <button class="secondaire" id="b-regles" style="width:100%;margin-top:6px;border:0;background:none;color:#9aa094;cursor:pointer;padding:11px;font-family:var(--display,system-ui);font-size:12.5px;letter-spacing:.17em;text-transform:uppercase">Règles · Rules</button>
+    <div class="reglages">
+      <div class="ligne" id="ligne-niveau"><span>Adversaire</span>
+        <div class="seg" id="s-niveau">
+          <button data-v="faible">Faible</button><button data-v="moyen" class="on">Moyen</button>
+          <button data-v="fort">Fort</button><button data-v="expert">Expert</button>
+        </div>
+      </div>
+      <div class="ligne"><span>Buts</span>
+        <div class="seg" id="s-buts">
+          <button data-v="3">3</button><button data-v="5" class="on">5</button><button data-v="7">7</button>
+        </div>
+      </div>
+      <div class="ligne"><span>Balle</span>
+        <div class="seg" id="s-balle">
+          <button data-v="lent">Lente</button><button data-v="normal" class="on">Normale</button><button data-v="rapide">Rapide</button>
+        </div>
+      </div>
+      <div class="ligne"><span>Son</span>
+        <div class="seg" id="s-son">
+          <button data-v="1" class="on">Oui</button><button data-v="0">Non</button>
+        </div>
+      </div>
+      <div class="duo" style="margin-top:4px">
+        <button class="b2" id="b-plein">Plein écran</button>
+        <button class="b2" id="b-test">Tester le son</button>
+      </div>
+      <p class="etat" id="etat-son"></p>
+    </div>
+  </div>
+</div>
+
+<!-- FIN DE MATCH -->
+<div class="layer sombre" id="l-fin">
+  <div class="panneau">
+    <button class="renverse" id="b-encore2">Encore une !</button>
+    <p class="gagnant" id="f-gagnant">Rouge gagne</p>
+    <p class="chiffres" id="f-score">5 – 3</p>
+    <p class="manches" id="f-manches">Manches 1 – 0</p>
+    <button id="b-encore">Encore une !</button>
+    <button class="b2" id="b-menu">Menu</button>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div class="layer sombre" id="l-pause">
+  <div class="panneau">
+    <p class="sur" style="margin-bottom:20px">Pause</p>
+    <button id="b-reprendre">Reprendre</button>
+    <button class="b2" id="b-quitter">Quitter le match</button>
+  </div>
+</div>
+
+
+<!-- RÈGLES -->
+<div class="layer" id="l-regles">
+  <div class="feuille">
+    <h2 style="font-family:var(--rond,var(--display,system-ui));margin:0 0 14px">KICKR</h2>
+    <div class="reglesLangue"><button class="lg on" data-lg="fr">Français</button><button class="lg" data-lg="en">English</button></div><ol class="reglesListe" data-lg="fr"><li>Baby-foot vu de dessus, deux joueurs sur le même écran.</li><li>Chacun tient un bord du téléphone. Un doigt fait coulisser ta barre.</li><li>Couvrir un côté ouvre l'autre. Tout déplacement est un pari.</li><li>Une seule barre, deux joueurs dessus.</li><li>La balle accélère à chaque touche.</li><li>Frapper la balle en mouvement lui donne de l'effet.</li><li>Match en trois, cinq ou sept buts.</li><li>Quatre adversaires en solo, du débutant à l'expert.</li><li>Le bon joueur ne suit pas la balle : il calcule où elle va arriver.</li><li>Trois vitesses de balle : lente, normale, rapide.</li></ol><ol class="reglesListe" data-lg="en" hidden><li>Top-down table football, two players on one screen.</li><li>Each player holds one end of the phone. One finger slides your bar.</li><li>Covering one side opens the other. Every move is a gamble.</li><li>One bar, two players on it.</li><li>The ball speeds up with every touch.</li><li>Striking the ball while moving puts spin on it.</li><li>Match played to three, five or seven goals.</li><li>Four opponent levels in solo, from beginner to expert.</li><li>A good player doesn't follow the ball — they work out where it will arrive.</li><li>Three ball speeds: slow, normal, fast.</li></ol>
+    <button class="primaire" id="b-fermer">Compris</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   KICKR — baby-foot arcade 1v1, un doigt par joueur
+   Terrain logique 600 x 1000, mis à l'échelle à l'écran.
+   Joueur 0 = ROUGE, en bas.  Joueur 1 = BLEU, en haut.
+   ============================================================ */
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+/* ---------- géométrie ---------- */
+const W = 600;                         // largeur logique fixe
+let   H = 1000;                        // longueur logique, calée sur le format de l'écran
+const BANDE = 46;                      // largeur du rail + filet à chaque bout
+const LIGNE_H = BANDE;
+let   LIGNE_B = H - BANDE;             // ligne de but basse
+const BUT_L = 214;
+const BX0 = (W - BUT_L) / 2, BX1 = (W + BUT_L) / 2;
+const R = 17;                          // rayon balle
+const R_POTEAU = 9;
+const FL = 62, FH = 27, FECART = 94;   // largeur/hauteur d'un joueur, écart au centre de barre
+let   BAR_Y = [LIGNE_B - 152, LIGNE_H + 152];
+const BAR_MIN = FECART + FL / 2, BAR_MAX = W - BAR_MIN;
+const BAR_V = 1280;                    // vitesse max de la barre (px logiques / s)
+
+/* Quatre adversaires, et non plus un seul jeu de constantes en dur.
+   « anticipe » est le vrai levier : au lieu de suivre la balle là où elle est,
+   un bon joueur calcule où elle VA arriver sur sa barre, rebonds compris. */
+const NIVEAUX_IA = {
+  faible: { reflexe:0.30, bruit:105,vitesse:0.50, anticipe:0.00, recentre:0.30 },
+  moyen:  { reflexe:0.15, bruit:52, vitesse:0.76, anticipe:0.45, recentre:0.50 },
+  fort:   { reflexe:0.075,bruit:18, vitesse:0.96, anticipe:0.82, recentre:0.22 },
+  expert: { reflexe:0.04, bruit:6,  vitesse:1.06, anticipe:1.00, recentre:0.10 }
+};
+
+const VITESSES = {
+  lent:    { base: 400, max: 850  },
+  normal:  { base: 478, max: 1020 },
+  rapide:  { base: 568, max: 1190 }
+};
+
+const C = {
+  feutre:'#1b3d2c', feutreClair:'#28583c', craie:'#eef2e6',
+  bois:'#7a4f2b', boisFonce:'#2e1c0c', laiton:'#d9a441',
+  rouge:'#e04b3c', rougeSombre:'#9d2c22',
+  bleu:'#3d7fd6', bleuSombre:'#23508f',
+  balle:'#f7f3e6'
+};
+const EQ = [
+  { nom:'Rouge', c:C.rouge, sombre:C.rougeSombre },
+  { nom:'Bleu',  c:C.bleu,  sombre:C.bleuSombre  }
+];
+
+/* ---------- état ---------- */
+const S = {
+  vue:'menu',            // menu | jeu | fin | pause
+  phase:'engagement',    // engagement | jeu | but
+  t:0,
+  score:[0,0],
+  manches:[0,0],
+  objectif:5,
+  vitesse:'normal',
+  son:true,
+  solo:false, niveauIA:'moyen',
+  concede:1,             // qui a encaissé le dernier but (reçoit l'engagement)
+  barre:[{x:W/2,cible:W/2,v:0},{x:W/2,cible:W/2,v:0}],
+  balle:{x:W/2,y:H/2,vx:0,vy:0},
+  trace:[],
+  plat:0,
+  secousse:0,
+  eclair:0,
+  buteur:0,
+  ia:{t:0,cible:W/2}
+};
+
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+
+/* ---------- géométrie & échelle ---------- */
+const scene = document.getElementById('scene');
+let ech = 1, rect = {left:0,top:0,width:1,height:1};
+
+/* Le terrain garde une largeur logique de 600 et s'allonge pour occuper tout
+   l'écran. Bornes serrées pour que la longueur du terrain reste jouable. */
+function geometrie(){
+  const l = scene.clientWidth || window.innerWidth;
+  const h = scene.clientHeight || window.innerHeight;
+  H = clamp(Math.round(W * (h - 30) / Math.max(l - 30, 1)), 880, 1420);
+  LIGNE_B = H - BANDE;
+  const jeu = H - 2 * BANDE;
+  const recul = Math.round(jeu * 0.167);        // barres à 1/6 de leur but
+  BAR_Y = [LIGNE_B - recul, LIGNE_H + recul];
+}
+
+function majEchelle(){
+  const marge = 30;
+  const vw = (scene.clientWidth || window.innerWidth) - marge;
+  const vh = (scene.clientHeight || window.innerHeight) - marge;
+  ech = Math.min(vw / W, vh / H);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  cv.style.width = (W * ech) + 'px';
+  cv.style.height = (H * ech) + 'px';
+  cv.width = Math.round(W * ech * dpr);
+  cv.height = Math.round(H * ech * dpr);
+  ctx.setTransform(ech * dpr, 0, 0, ech * dpr, 0, 0);
+  rect = cv.getBoundingClientRect();
+}
+
+/* pendant un match on ne retouche pas la géométrie : on ne fait que rééchelonner */
+function redimensionner(){
+  if (S.vue !== 'jeu') geometrie();
+  majEchelle();
+}
+window.addEventListener('resize', redimensionner);
+window.addEventListener('orientationchange', ()=> setTimeout(redimensionner, 250));
+
+/* ---------- son ---------- */
+/* Le son ne peut démarrer qu'après un vrai geste de l'utilisateur, et sur iOS il
+   faut en plus demander la session "playback" pour ignorer le bouton silence. */
+let ac = null, master = null, etatSon = 'en attente d\'un premier appui';
+
+function creerAudio(){
+  if (ac) return ac;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC){ etatSon = 'non supporté par ce navigateur'; return null; }
+  try { ac = new AC(); } catch(e){ etatSon = 'refusé (' + e.name + ')'; return null; }
+  master = ac.createGain(); master.gain.value = 0.9; master.connect(ac.destination);
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+  return ac;
+}
+function debloquer(){
+  const a = creerAudio(); if (!a) return null;
+  if (a.state !== 'running') a.resume().catch(()=>{});
+  try {                                   // impulsion muette : ouvre la sortie audio
+    const src = a.createBufferSource();
+    src.buffer = a.createBuffer(1, 1, a.sampleRate);
+    src.connect(master); src.start(0);
+  } catch(e){}
+  etatSon = a.state;
+  return a;
+}
+const audio = debloquer;
+['pointerdown','touchstart','mousedown','keydown'].forEach(ev=>
+  window.addEventListener(ev, debloquer, {capture:true, passive:true}));
+document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) debloquer(); });
+
+function bip(freq, duree, type, vol){
+  if (!S.son || !ac || !master || ac.state !== 'running') return;
+  const t = ac.currentTime + 0.002;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'square';
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(vol || 0.14, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + duree + 0.03);
+}
+const sonFrappe = f => bip(150 + f * 220, 0.07, 'square', 0.15);
+const sonMur    = () => bip(120, 0.05, 'triangle', 0.10);
+const sonPoteau = () => bip(880, 0.12, 'sine', 0.16);
+function sonBut(){
+  [523, 659, 784, 1046].forEach((f,i)=> setTimeout(()=> bip(f, 0.16, 'square', 0.14), i * 85));
+}
+
+/* ---------- entrées ---------- */
+const doigts = new Map();
+function versLogiqueX(clientX){
+  return clamp((clientX - rect.left) / (rect.width || 1), 0, 1);
+}
+function quelJoueur(clientY){
+  // moitié physique de l'écran : sans miroir, chacun pointe où il veut sa barre
+  return clientY > window.innerHeight / 2 ? 0 : 1;
+}
+function poser(j, frac){
+  S.barre[j].cible = BAR_MIN + frac * (BAR_MAX - BAR_MIN);
+}
+function onDown(e){
+  audio();
+  if (S.vue !== 'jeu') return;
+  const j = quelJoueur(e.clientY);
+  if (S.solo && j === 1) return;
+  doigts.set(e.pointerId, j);
+  poser(j, versLogiqueX(e.clientX));
+  e.preventDefault();
+}
+function onMove(e){
+  const j = doigts.get(e.pointerId);
+  if (j === undefined) return;
+  poser(j, versLogiqueX(e.clientX));
+  e.preventDefault();
+}
+function onUp(e){ doigts.delete(e.pointerId); }
+window.addEventListener('pointerdown', onDown, {passive:false});
+window.addEventListener('pointermove', onMove, {passive:false});
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+
+const touches = {};
+window.addEventListener('keydown', e=>{ touches[e.key] = true; });
+window.addEventListener('keyup',   e=>{ touches[e.key] = false; });
+function clavier(dt){
+  const p = BAR_V * dt;
+  if (touches['q'] || touches['a']) S.barre[0].cible -= p;
+  if (touches['d'])                 S.barre[0].cible += p;
+  if (touches['ArrowLeft'])         S.barre[1].cible -= p;
+  if (touches['ArrowRight'])        S.barre[1].cible += p;
+  S.barre[0].cible = clamp(S.barre[0].cible, BAR_MIN, BAR_MAX);
+  S.barre[1].cible = clamp(S.barre[1].cible, BAR_MIN, BAR_MAX);
+}
+
+/* ---------- déroulé du match ---------- */
+function nouveauMatch(solo){
+  geometrie(); majEchelle();
+  S.solo = !!solo;
+  S.score = [0,0];
+  S.concede = Math.random() < 0.5 ? 0 : 1;
+  S.barre[0].x = S.barre[0].cible = W/2;
+  S.barre[1].x = S.barre[1].cible = W/2;
+  S.vue = 'jeu';
+  engagement(1.0);
+  document.getElementById('pause-btn').classList.add('on');
+  fermerCalques();
+}
+function engagement(delai){
+  S.phase = 'engagement'; S.t = delai;
+  S.balle.x = W/2; S.balle.y = H/2; S.balle.vx = 0; S.balle.vy = 0;
+  S.trace.length = 0; S.plat = 0;
+}
+function lancer(){
+  const v = VITESSES[S.vitesse].base;
+  const dir = S.concede === 0 ? 1 : -1;          // la balle part vers celui qui a encaissé
+  const a = (Math.random() * 0.7 - 0.35);
+  S.balle.vx = Math.sin(a) * v;
+  S.balle.vy = dir * Math.cos(a) * v;
+  S.phase = 'jeu';
+  bip(660, 0.09, 'sine', 0.12);
+}
+function but(j){
+  S.score[j]++;
+  S.concede = 1 - j;
+  S.buteur = j;
+  S.phase = 'but'; S.t = 1.25;
+  S.secousse = 14; S.eclair = 1;
+  sonBut();
+  if (navigator.vibrate) navigator.vibrate(70);
+}
+function apresBut(){
+  if (S.score[S.buteur] >= S.objectif) finMatch(S.buteur);
+  else engagement(0.85);
+}
+function finMatch(j){
+  S.manches[j]++;
+  S.vue = 'fin';
+  document.getElementById('pause-btn').classList.remove('on');
+  document.getElementById('f-gagnant').textContent = EQ[j].nom + ' gagne';
+  document.getElementById('f-gagnant').style.color = EQ[j].c;
+  document.getElementById('f-score').textContent = S.score[0] + ' – ' + S.score[1];
+  document.getElementById('f-manches').textContent =
+    'Manches ' + S.manches[0] + ' – ' + S.manches[1];
+  document.getElementById('l-fin').classList.add('on');
+}
+
+/* ---------- physique ---------- */
+function collisionRect(rx, ry, rl, rh, prop){
+  const b = S.balle;
+  const hx = rl/2, hy = rh/2;
+  let dx = b.x - rx, dy = b.y - ry;
+  const px = clamp(dx, -hx, hx), py = clamp(dy, -hy, hy);
+  let nx = dx - px, ny = dy - py;
+  let d = Math.hypot(nx, ny);
+
+  if (d === 0){                                  // centre de la balle dans le rectangle
+    const sx = hx - Math.abs(dx), sy = hy - Math.abs(dy);
+    if (sy < sx){ nx = 0; ny = dy >= 0 ? 1 : -1; } else { nx = dx >= 0 ? 1 : -1; ny = 0; }
+    d = 1;
+  } else if (d > R) return false;
+  else { nx /= d; ny /= d; }
+
+  b.x = rx + px + nx * R;
+  b.y = ry + py + ny * R;
+
+  const conf = VITESSES[S.vitesse];
+  const barreV = S.barre[prop].v;
+  // la frappe : la vitesse de la barre au contact ajoute de la puissance
+  let vit = Math.hypot(b.vx, b.vy) * 1.035 + Math.abs(barreV) * 0.16;
+  vit = clamp(vit, conf.base * 0.72, conf.max);
+
+  // rebond + effet donné par le mouvement de la barre
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn < 0){ b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
+  b.vx += barreV * 0.30;
+
+  const versAvant = prop === 0 ? -1 : 1;         // direction du camp adverse
+  if (Math.sign(ny) === versAvant && Math.abs(ny) > 0.4){
+    b.vy = versAvant * Math.max(Math.abs(b.vy), vit * 0.55);   // frappe pleine face
+  } else if (Math.abs(b.vy) < vit * 0.22){
+    b.vy = (b.vy >= 0 ? 1 : -1) * vit * 0.22;                  // évite les allers-retours plats
+  }
+
+  const n = Math.hypot(b.vx, b.vy) || 1;
+  b.vx = b.vx / n * vit; b.vy = b.vy / n * vit;
+  sonFrappe(clamp(vit / conf.max, 0, 1));
+  S.secousse = Math.max(S.secousse, 3 + 4 * (vit / conf.max));
+  return true;
+}
+
+function collisionPoteau(px, py){
+  const b = S.balle;
+  let nx = b.x - px, ny = b.y - py;
+  const d = Math.hypot(nx, ny);
+  if (d > R + R_POTEAU || d === 0) return;
+  nx /= d; ny /= d;
+  b.x = px + nx * (R + R_POTEAU);
+  b.y = py + ny * (R + R_POTEAU);
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn < 0){ b.vx = (b.vx - 2 * vn * nx) * 0.98; b.vy = (b.vy - 2 * vn * ny) * 0.98; }
+  sonPoteau();
+  S.secousse = Math.max(S.secousse, 6);
+}
+
+/* Où la balle croisera-t-elle la barre de l'adversaire ? On la fait avancer
+   en pensée jusqu'à cette ligne, en repliant les rebonds sur les bandes. */
+function pointDArrivee(b, yBarre){
+  if (Math.abs(b.vy) < 1) return b.x;
+  const t = (yBarre - b.y) / b.vy;
+  if (t <= 0) return b.x;
+  let x = b.x + b.vx * t;
+  const lo = R, hi = W - R, largeur = hi - lo;
+  if (largeur <= 0) return clamp(x, BAR_MIN, BAR_MAX);
+  let u = (x - lo) % (2 * largeur);
+  if (u < 0) u += 2 * largeur;
+  return lo + (u > largeur ? 2 * largeur - u : u);
+}
+function ia(dt){
+  const a = S.ia, b = S.balle;
+  const n = NIVEAUX_IA[S.niveauIA] || NIVEAUX_IA.moyen;
+  a.t -= dt;
+  if (a.t <= 0){
+    a.t = n.reflexe * (0.8 + Math.random() * 0.4);
+    const versMoi = b.vy > 0 ? (BAR_Y[1] > BAR_Y[0]) : (BAR_Y[1] < BAR_Y[0]);
+    /* on mélange la position actuelle et le point d'arrivée calculé, selon le
+       niveau : c'est ce dosage qui sépare un débutant d'un joueur qui lit le jeu */
+    const prevu = pointDArrivee(b, BAR_Y[1]);
+    let vise = b.x + (prevu - b.x) * n.anticipe;
+    vise += (Math.random() * 2 - 1) * n.bruit;
+    if (!versMoi) vise = W/2 + (vise - W/2) * n.recentre;       // balle qui s'éloigne : on se replace
+    const g  = clamp(vise - FECART, BAR_MIN, BAR_MAX);
+    const dr = clamp(vise + FECART, BAR_MIN, BAR_MAX);
+    const cur = S.barre[1].x;
+    /* Choix du joueur qui va intercepter : on garde CELUI DÉJÀ CHOISI tant que
+       l'autre n'est pas franchement meilleur. Sans cette marge, les deux
+       options s'échangeaient d'une image à l'autre et la barre vibrait. */
+    const dG = Math.abs(g - cur), dD = Math.abs(dr - cur);
+    const memeQuAvant = a.dernier === 'g' ? g : (a.dernier === 'd' ? dr : null);
+    let choix;
+    if (memeQuAvant !== null && Math.abs(memeQuAvant - cur) < Math.max(dG, dD) + 26)
+      choix = memeQuAvant;
+    else { choix = dG < dD ? g : dr; a.dernier = dG < dD ? 'g' : 'd'; }
+    /* Et l'on ne déplace la consigne que si elle a vraiment bougé : un écart de
+       quelques pixels ne vaut pas la peine qu'on reparte. */
+    if (a.cible === undefined || Math.abs(choix - a.cible) > 9) a.cible = choix;
+  }
+  /* Approche amortie : on ralentit à mesure qu'on arrive, au lieu de foncer
+     à pleine vitesse puis de se poser d'un coup. */
+  const d = a.cible - S.barre[1].x;
+  const m = BAR_V * n.vitesse * dt * (Math.abs(d) < 20 ? 0.72 + Math.abs(d)/20*0.28 : 1);
+  S.barre[1].cible = Math.abs(d) <= m ? a.cible : S.barre[1].x + Math.sign(d) * m;
+}
+
+function pas(dt){
+  if (S.secousse > 0) S.secousse = Math.max(0, S.secousse - dt * 55);
+  if (S.eclair  > 0) S.eclair  = Math.max(0, S.eclair - dt * 2.6);
+  if (S.vue !== 'jeu') return;
+
+  clavier(dt);
+  if (S.solo) ia(dt);
+
+  for (let i = 0; i < 2; i++){
+    const b = S.barre[i];
+    const d = b.cible - b.x, m = BAR_V * dt;
+    const nx = clamp(Math.abs(d) <= m ? b.cible : b.x + Math.sign(d) * m, BAR_MIN, BAR_MAX);
+    b.v = (nx - b.x) / dt;
+    b.x = nx;
+  }
+
+  if (S.phase === 'engagement'){ S.t -= dt; if (S.t <= 0) lancer(); return; }
+  if (S.phase === 'but'){ S.t -= dt; if (S.t <= 0) apresBut(); return; }
+
+  const b = S.balle;
+  b.x += b.vx * dt;
+  b.y += b.vy * dt;
+
+  if (b.x - R < 0){ b.x = R; b.vx = Math.abs(b.vx) * 0.985; sonMur(); }
+  if (b.x + R > W){ b.x = W - R; b.vx = -Math.abs(b.vx) * 0.985; sonMur(); }
+
+  for (let i = 0; i < 2; i++){
+    collisionRect(S.barre[i].x - FECART, BAR_Y[i], FL, FH, i);
+    collisionRect(S.barre[i].x + FECART, BAR_Y[i], FL, FH, i);
+  }
+  collisionPoteau(BX0, LIGNE_H); collisionPoteau(BX1, LIGNE_H);
+  collisionPoteau(BX0, LIGNE_B); collisionPoteau(BX1, LIGNE_B);
+
+  const dansLaCage = b.x > BX0 && b.x < BX1;
+  if (b.y - R < LIGNE_H && !dansLaCage){ b.y = LIGNE_H + R; b.vy = Math.abs(b.vy) * 0.985; sonMur(); }
+  if (b.y + R > LIGNE_B && !dansLaCage){ b.y = LIGNE_B - R; b.vy = -Math.abs(b.vy) * 0.985; sonMur(); }
+
+  if (b.y < LIGNE_H - 4){ but(0); return; }
+  if (b.y > LIGNE_B + 4){ but(1); return; }
+
+  // anti-blocage : une balle presque horizontale finit par repartir vers un but
+  const vit = Math.hypot(b.vx, b.vy);
+  if (Math.abs(b.vy) < vit * 0.13){
+    S.plat += dt;
+    if (S.plat > 0.45){
+      b.vy = (b.y < H/2 ? 1 : -1) * vit * 0.3;
+      const n = Math.hypot(b.vx, b.vy) || 1;
+      b.vx = b.vx / n * vit; b.vy = b.vy / n * vit;
+      S.plat = 0;
+    }
+  } else S.plat = 0;
+
+  S.trace.unshift({x:b.x, y:b.y});
+  if (S.trace.length > 6) S.trace.pop();
+}
+
+/* ---------- dessin ---------- */
+function rr(x, y, l, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x - l/2 + r, y - h/2);
+  ctx.arcTo(x + l/2, y - h/2, x + l/2, y + h/2, r);
+  ctx.arcTo(x + l/2, y + h/2, x - l/2, y + h/2, r);
+  ctx.arcTo(x - l/2, y + h/2, x - l/2, y - h/2, r);
+  ctx.arcTo(x - l/2, y - h/2, x + l/2, y - h/2, r);
+  ctx.closePath();
+}
+
+function dessinerTerrain(){
+  /* Meuble et tapis : profondeur, matière et léger éclairage central. */
+  const fond = ctx.createLinearGradient(0,0,W,H);
+  fond.addColorStop(0,'#102b20'); fond.addColorStop(.5,'#246044'); fond.addColorStop(1,'#102b20');
+  ctx.fillStyle=fond; ctx.fillRect(0,0,W,H);
+
+  // bandes tondues / texture du feutre
+  for(let y=0;y<H;y+=30){
+    ctx.fillStyle=(Math.floor(y/30)%2===0)?'rgba(255,255,255,.018)':'rgba(0,0,0,.025)';
+    ctx.fillRect(0,y,W,30);
+  }
+  const halo=ctx.createRadialGradient(W/2,H/2,20,W/2,H/2,W*.62);
+  halo.addColorStop(0,'rgba(105,193,134,.12)');halo.addColorStop(1,'rgba(0,0,0,.24)');
+  ctx.fillStyle=halo;ctx.fillRect(0,0,W,H);
+
+  // traits du terrain
+  ctx.strokeStyle='rgba(240,246,232,.30)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H/2,92,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H/2,6,0,Math.PI*2);ctx.fillStyle='rgba(240,246,232,.32)';ctx.fill();
+  [1,-1].forEach(sg=>{
+    const y=sg===1?LIGNE_B:LIGNE_H;
+    ctx.strokeRect(W/2-150,sg===1?y-130:y,300,130);
+    ctx.beginPath();ctx.arc(W/2,y-sg*130,62,sg===1?Math.PI:0,sg===1?Math.PI*2:Math.PI);ctx.stroke();
+  });
+
+  // côtés intérieurs du meuble
+  const side=ctx.createLinearGradient(0,0,22,0);
+  side.addColorStop(0,'#211006');side.addColorStop(.45,'#9a6032');side.addColorStop(1,'rgba(255,205,116,.18)');
+  ctx.fillStyle=side;ctx.fillRect(0,0,18,H);
+  ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.fillStyle=side;ctx.fillRect(0,0,18,H);ctx.restore();
+  ctx.fillStyle='rgba(0,0,0,.28)';ctx.fillRect(18,0,4,H);ctx.fillRect(W-22,0,4,H);
+
+  // rails de but et cages profondes
+  [1,-1].forEach(sg=>{
+    const haut=sg===1?LIGNE_B:0;
+    const wood=ctx.createLinearGradient(0,haut,0,haut+BANDE);
+    wood.addColorStop(0,'#9b6030');wood.addColorStop(.45,'#5d3418');wood.addColorStop(1,'#251107');
+    ctx.fillStyle=wood;ctx.fillRect(0,haut,W,BANDE);
+    ctx.fillStyle='rgba(255,220,158,.10)';ctx.fillRect(0,haut,W,3);
+    ctx.save();ctx.beginPath();ctx.rect(BX0,haut,BUT_L,BANDE);ctx.clip();
+    ctx.fillStyle='#080604';ctx.fillRect(BX0,haut,BUT_L,BANDE);
+    const netGrad=ctx.createLinearGradient(BX0,haut,BX1,haut+BANDE);
+    netGrad.addColorStop(0,'rgba(255,255,255,.10)');netGrad.addColorStop(.5,'rgba(255,255,255,.36)');netGrad.addColorStop(1,'rgba(255,255,255,.10)');
+    ctx.strokeStyle=netGrad;ctx.lineWidth=1.2;
+    for(let i=-BANDE;i<BUT_L+BANDE;i+=12){
+      ctx.beginPath();ctx.moveTo(BX0+i,haut);ctx.lineTo(BX0+i+BANDE,haut+BANDE);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(BX0+i,haut+BANDE);ctx.lineTo(BX0+i+BANDE,haut);ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle='rgba(247,244,226,.92)';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(BX0,sg===1?LIGNE_B:LIGNE_H);ctx.lineTo(BX1,sg===1?LIGNE_B:LIGNE_H);ctx.stroke();
+  });
+
+  // poteaux chromés/laiton
+  [[BX0,LIGNE_H],[BX1,LIGNE_H],[BX0,LIGNE_B],[BX1,LIGNE_B]].forEach(p=>{
+    const pg=ctx.createRadialGradient(p[0]-3,p[1]-4,1,p[0],p[1],R_POTEAU);
+    pg.addColorStop(0,'#fff5c9');pg.addColorStop(.35,'#e6b856');pg.addColorStop(1,'#765013');
+    ctx.beginPath();ctx.arc(p[0],p[1],R_POTEAU,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=1.5;ctx.stroke();
+  });
+
+  compteur(0,30,LIGNE_B+BANDE/2,1);
+  compteur(1,W-30,LIGNE_H-BANDE/2,-1);
+}
+
+function compteur(j,x0,y,sens){
+  const n=S.objectif,pas=27;
+  ctx.strokeStyle='rgba(230,187,95,.42)';ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+sens*pas*(n-1),y);ctx.stroke();
+  for(let i=0;i<n;i++){
+    const x=x0+sens*pas*i,pris=i<S.score[j];
+    const bg=ctx.createRadialGradient(x-3,y-4,1,x,y,10);
+    bg.addColorStop(0,pris?'#ffffff':'#6b4b2a');bg.addColorStop(.35,pris?EQ[j].c:'#3a2614');bg.addColorStop(1,pris?EQ[j].sombre:'#130c06');
+    ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fillStyle=bg;ctx.fill();
+    ctx.strokeStyle=pris?'rgba(255,255,255,.55)':'rgba(255,220,160,.18)';ctx.lineWidth=1.4;ctx.stroke();
+  }
+}
+
+function dessinerFigurine(x,y,j){
+  const e=EQ[j];
+  ctx.save();ctx.translate(x,y);
+  // ombre portée
+  ctx.fillStyle='rgba(0,0,0,.34)';ctx.beginPath();ctx.ellipse(3,8,29,10,0,0,Math.PI*2);ctx.fill();
+  // jambes / chaussures
+  ctx.fillStyle='#21160d';rr(-18,7,22,10,5);ctx.fill();rr(18,7,22,10,5);ctx.fill();
+  // corps fuselé façon joueur de baby-foot
+  const body=ctx.createLinearGradient(0,-18,0,17);
+  body.addColorStop(0,'#ffffff');body.addColorStop(.12,e.c);body.addColorStop(.72,e.sombre);body.addColorStop(1,'#34170f');
+  ctx.fillStyle=body;
+  ctx.beginPath();ctx.moveTo(-27,-8);ctx.quadraticCurveTo(-22,-18,-10,-17);
+  ctx.lineTo(10,-17);ctx.quadraticCurveTo(22,-18,27,-8);ctx.lineTo(23,10);
+  ctx.quadraticCurveTo(10,17,0,17);ctx.quadraticCurveTo(-10,17,-23,10);ctx.closePath();ctx.fill();
+  // bande centrale / fixation à la barre
+  ctx.fillStyle='rgba(255,255,255,.30)';ctx.fillRect(-3,-14,6,25);
+  ctx.fillStyle='rgba(0,0,0,.34)';ctx.fillRect(-2,-16,4,31);
+  // tête stylisée
+  const head=ctx.createRadialGradient(-3,-21,1,0,-20,9);
+  head.addColorStop(0,'#ffe6bf');head.addColorStop(1,'#9f633b');
+  ctx.beginPath();ctx.arc(0,-21,8,0,Math.PI*2);ctx.fillStyle=head;ctx.fill();
+  // reflet
+  ctx.strokeStyle='rgba(255,255,255,.38)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-16,-12);ctx.lineTo(13,-12);ctx.stroke();
+  ctx.restore();
+}
+
+function dessinerBarre(j){
+  const y=BAR_Y[j],bx=S.barre[j].x;
+  // ombre de barre
+  ctx.strokeStyle='rgba(0,0,0,.34)';ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(0,y+5);ctx.lineTo(W,y+5);ctx.stroke();
+  // tube chromé
+  const rod=ctx.createLinearGradient(0,y-5,0,y+5);
+  rod.addColorStop(0,'#fff7d8');rod.addColorStop(.22,'#a97827');rod.addColorStop(.48,'#f5d98d');rod.addColorStop(.72,'#9a671f');rod.addColorStop(1,'#4c2b0c');
+  ctx.strokeStyle=rod;ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  // poignées visibles sur les côtés
+  const side=j===0?W-5:5;
+  ctx.fillStyle=EQ[j].sombre;rr(side,y,34,20,7);ctx.fill();
+  [-FECART,FECART].forEach(o=>dessinerFigurine(bx+o,y,j));
+}
+
+function dessinerBalle(){
+  const b=S.balle;
+  for(let i=S.trace.length-1;i>=0;i--){
+    const t=S.trace[i],a=(1-i/S.trace.length)*.18;
+    ctx.beginPath();ctx.arc(t.x,t.y,R*(.82-i*.055),0,Math.PI*2);
+    ctx.fillStyle='rgba(255,221,133,'+a+')';ctx.fill();
+  }
+  ctx.beginPath();ctx.ellipse(b.x+4,b.y+7,R*1.02,R*.72,0,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.38)';ctx.fill();
+  const g=ctx.createRadialGradient(b.x-6,b.y-7,1,b.x,b.y,R);
+  g.addColorStop(0,'#fffdf2');g.addColorStop(.48,'#f0ead8');g.addColorStop(1,'#a89d83');
+  ctx.beginPath();ctx.arc(b.x,b.y,R,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(45,36,24,.35)';ctx.lineWidth=1.4;ctx.stroke();
+  // panneaux de balle miniatures
+  ctx.fillStyle='rgba(42,34,25,.42)';ctx.beginPath();ctx.arc(b.x,b.y,4.5,0,Math.PI*2);ctx.fill();
+  for(let k=0;k<5;k++){
+    const a=k*Math.PI*2/5+S.t*5;
+    ctx.beginPath();ctx.arc(b.x+Math.cos(a)*10,b.y+Math.sin(a)*10,2.3,0,Math.PI*2);ctx.fill();
+  }
+  ctx.beginPath();ctx.arc(b.x-6,b.y-7,4,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.65)';ctx.fill();
+}
+
+function texteDouble(txt, taille, couleur){
+  ctx.font = '800 ' + Math.round(taille*0.92) + 'px ' +
+             getComputedStyle(document.documentElement).getPropertyValue('--rond');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  /* En entraînement, personne ne lit à l'envers : on supprime le second
+     message, qui ne servait qu'au joueur d'en face. */
+  const places = S.solo ? [[H * 0.58, 0]] : [[H * 0.63, 0], [H * 0.37, Math.PI]];
+  places.forEach(p=>{
+    ctx.save(); ctx.translate(W/2, p[0]); ctx.rotate(p[1]);
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillText(txt, 3, 4);
+    ctx.fillStyle = couleur; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  });
+}
+
+function dessiner(){
+  ctx.save();
+  if (S.secousse > 0.4){
+    ctx.translate((Math.random()-0.5) * S.secousse, (Math.random()-0.5) * S.secousse);
+  }
+  dessinerTerrain();
+  dessinerBarre(0); dessinerBarre(1);
+  if (S.phase !== 'but') dessinerBalle();
+
+  if (S.vue === 'jeu' && S.phase === 'but'){
+    texteDouble('BUT !', 84, EQ[S.buteur].c);
+  }
+  if (S.vue === 'jeu' && S.phase === 'engagement' && S.t > 0.15){
+    texteDouble('PRÊTS ?', 40, 'rgba(238,242,230,.75)');
+  }
+  ctx.restore();
+
+  if (S.eclair > 0.01){
+    ctx.fillStyle = 'rgba(255,255,255,' + (S.eclair * 0.35) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* ---------- boucle ---------- */
+let dernier = performance.now(), reste = 0;
+const DT = 1/120;
+function boucle(now){
+  let d = (now - dernier) / 1000; dernier = now;
+  if (d > 0.25) d = 0.25;
+  reste += d;
+  let garde = 0;
+  while (reste >= DT && garde++ < 40){ pas(DT); reste -= DT; }
+  dessiner();
+  requestAnimationFrame(boucle);
+}
+
+/* ---------- interface ---------- */
+function fermerCalques(){
+  document.querySelectorAll('.layer').forEach(l=> l.classList.remove('on'));
+}
+function segment(id, cb){
+  document.getElementById(id).addEventListener('click', e=>{
+    const b = e.target.closest('button'); if (!b) return;
+    audio();
+    [...b.parentNode.children].forEach(x=> x.classList.remove('on'));
+    b.classList.add('on');
+    cb(b.dataset.v);
+  });
+}
+segment('s-buts',  v=> S.objectif = parseInt(v, 10));
+segment('s-balle', v=> S.vitesse = v);
+segment('s-son',   v=> S.son = v === '1');
+
+/* iPadOS 16+ et navigateurs de bureau : occupe toute la surface, sans barre. */
+function enPleinEcran(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+document.getElementById('b-plein').onclick = ()=>{
+  const zone = document.getElementById('etat-son');
+  const e = document.documentElement;
+  try {
+    if (enPleinEcran()){
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const f = e.requestFullscreen || e.webkitRequestFullscreen;
+      if (!f){ zone.textContent = 'Plein écran indisponible sur ce navigateur. Sur iPhone, ajoute la page à l\'écran d\'accueil.'; return; }
+      const r = f.call(e);
+      if (r && r.catch) r.catch(()=>{ zone.textContent = 'Plein écran refusé par le navigateur.'; });
+    }
+  } catch(err){ zone.textContent = 'Plein écran indisponible ici.'; }
+  setTimeout(redimensionner, 350);
+};
+document.addEventListener('fullscreenchange', ()=> setTimeout(redimensionner, 120));
+document.addEventListener('webkitfullscreenchange', ()=> setTimeout(redimensionner, 120));
+
+document.getElementById('b-test').onclick = ()=>{
+  const zone = document.getElementById('etat-son');
+  debloquer();
+  S.son = true;
+  const seg = document.getElementById('s-son');
+  [...seg.children].forEach(b=> b.classList.toggle('on', b.dataset.v === '1'));
+  if (!ac){ zone.textContent = 'Audio indisponible : ' + etatSon + '.'; return; }
+  [523, 659, 880].forEach((f,i)=> setTimeout(()=> bip(f, 0.15, 'square', 0.16), i * 130));
+  setTimeout(()=>{
+    zone.textContent = ac.state === 'running'
+      ? 'Sortie audio active. Si tu n\'entends rien : bouton silence de l\'appareil, volume, ou onglet en sourdine.'
+      : 'Sortie audio en pause (' + ac.state + '). Touche l\'écran, puis réessaie.';
+  }, 200);
+};
+
+document.getElementById('b-duo').onclick  = ()=> nouveauMatch(false);
+(function(){
+  const z=document.getElementById('s-niveau');
+  z.addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...z.children].forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); S.niveauIA=b.dataset.v;
+  });
+  /* l'état de départ est LU sur le bouton marqué, jamais recopié à la main */
+  const on=z.querySelector('button.on'); if(on) S.niveauIA=on.dataset.v;
+})();
+document.getElementById('b-solo').onclick = ()=> nouveauMatch(true);
+document.getElementById('b-encore').onclick  = ()=> nouveauMatch(S.solo);
+document.getElementById('b-encore2').onclick = ()=> nouveauMatch(S.solo);
+document.getElementById('b-menu').onclick = ()=>{
+  S.vue = 'menu'; fermerCalques();
+  document.getElementById('l-menu').classList.add('on');
+  document.getElementById('pause-btn').classList.remove('on');
+};
+document.getElementById('pause-btn').onclick = ()=>{
+  if (S.vue !== 'jeu') return;
+  S.vue = 'pause';
+  document.getElementById('l-pause').classList.add('on');
+};
+document.getElementById('b-reprendre').onclick = ()=>{
+  S.vue = 'jeu'; fermerCalques();
+  if (S.phase === 'jeu') engagement(0.7);
+};
+document.getElementById('b-quitter').onclick = ()=>{
+  S.vue = 'menu'; fermerCalques();
+  document.getElementById('l-menu').classList.add('on');
+  document.getElementById('pause-btn').classList.remove('on');
+};
+
+geometrie();
+majEchelle();
+requestAnimationFrame(boucle);
+
+/* Bascule français / anglais des règles. La langue choisie est retenue d'une
+   ouverture à l'autre : on ne la redemande pas à chaque fois. */
+(function(){
+  let lg='fr';
+  try{ lg=localStorage.getItem('arkad.langue')||'fr'; }catch(e){}
+  function appliquer(){
+    document.querySelectorAll('.reglesListe').forEach(o=>{ o.hidden = o.dataset.lg!==lg; });
+    document.querySelectorAll('.reglesLangue .lg').forEach(b=>{
+      b.classList.toggle('on', b.dataset.lg===lg); });
+  }
+  document.addEventListener('click', e=>{
+    const b=e.target.closest('.reglesLangue .lg'); if(!b) return;
+    lg=b.dataset.lg;
+    try{ localStorage.setItem('arkad.langue', lg); }catch(err){}
+    appliquer();
+  });
+  appliquer();
+})();
+
+/* Ouverture et fermeture de l'écran de règles. */
+(function(){
+  const o=document.getElementById('b-regles'), f=document.getElementById('b-fermer'),
+        e=document.getElementById('l-regles');
+  if(o&&e) o.addEventListener('click',()=>e.classList.add('on'));
+  if(f&&e) f.addEventListener('click',()=>e.classList.remove('on'));
+})();
+
+</script>
+</body>
+</html>
