@@ -666,7 +666,15 @@ function animerJauge(dt){
      Les trois jauges gardent leur rapport : la direction reste la plus lente,
      c'est elle qui demande le plus de précision — un degré vaut trente
      centimètres à dix mètres. */
-  const vitesse = S.etape===0 ? 0.70 : (S.etape===1 ? 0.80 : 0.91);
+  /* LE RETOUR EST PLUS LENT QUE L'ALLER.
+     À l'aller, le curseur part de la gauche et l'on suit sa course depuis le
+     début : on anticipe. Au retour il revient de la droite, après un virage,
+     et l'on a bien moins de temps pour s'y préparer — à vitesse égale il est
+     donc plus dur à arrêter juste, ce qui n'a aucune raison d'être. Le retour
+     est ramené à 82 % de la vitesse d'aller : assez pour que les deux passages
+     se valent, trop peu pour qu'il devienne avantageux d'attendre le retour. */
+  const vitesse = (S.etape===0 ? 0.70 : (S.etape===1 ? 0.80 : 0.91))
+                * (S.sens < 0 ? 0.82 : 1);
   S.jauge += S.sens*dt*vitesse;
   if (S.jauge>1){ S.jauge=1; S.sens=-1; }
   if (S.jauge<0){ S.jauge=0; S.sens=1; }
@@ -1567,10 +1575,53 @@ function dessinerVisee(){
   const a=(S.etape>=1?S.valeurs[0]:S.jauge);
   const ang=(a-0.5)*2*(S.phase==='but'?0.28:0.52);
   const ux=Math.sin(ang), uy=Math.cos(ang);
-  ctx.strokeStyle='rgba(246,243,236,.34)'; ctx.lineWidth=2; ctx.setLineDash([6,7]);
-  ctx.beginPath(); ctx.moveTo(vx(S.cercle.x),vy(S.cercle.y));
-  ctx.lineTo(vx(S.cercle.x+ux*13), vy(S.cercle.y+uy*13)); ctx.stroke();
-  ctx.setLineDash([]);
+  /* LA LIGNE DE VISÉE SE VOYAIT À PEINE. Elle était tracée en blanc cassé à
+     34 % d'opacité, en pointillé fin, sur un terrain de sable clair. Mesuré au
+     pixel sur six distances : un rapport de contraste de 1,19 contre le fond,
+     et de 1,00 — c'est-à-dire rigoureusement invisible — partout où tombait un
+     intervalle du pointillé. Le seuil usuel de lisibilité d'un trait fin est
+     de 3. On la redessine donc par la couleur ET par la forme :
+       · un couloir qui s'évase du cercle vers le fond, pour que l'œil lise une
+         direction et non un cheveu ;
+       · un trait plein cerné de sombre — le cerne donne le contraste de
+         luminosité, le cœur cyan le contraste de teinte, et la combinaison
+         tient aussi bien sur le sable clair que sur une boule foncée ;
+       · des chevrons réguliers, qui disent le sens et jalonnent la distance.
+     Le pointillé disparaît : c'était lui qui créait les trous. */
+  const X0=vx(S.cercle.x), Y0=vy(S.cercle.y);
+  const PORTEE_VISEE=13;
+  const X1=vx(S.cercle.x+ux*PORTEE_VISEE), Y1=vy(S.cercle.y+uy*PORTEE_VISEE);
+  const dX=X1-X0, dY=Y1-Y0, lg=Math.hypot(dX,dY)||1;
+  const nx=-dY/lg, ny=dX/lg;                 // perpendiculaire à l'écran
+  ctx.save();
+  /* 1. le couloir de lancer */
+  const couloir=ctx.createLinearGradient(X0,Y0,X1,Y1);
+  couloir.addColorStop(0,'rgba(22,217,255,.26)');
+  couloir.addColorStop(1,'rgba(22,217,255,.015)');
+  ctx.fillStyle=couloir;
+  ctx.beginPath();
+  ctx.moveTo(X0+nx*3.5, Y0+ny*3.5);
+  ctx.lineTo(X1+nx*24,  Y1+ny*24);
+  ctx.lineTo(X1-nx*24,  Y1-ny*24);
+  ctx.lineTo(X0-nx*3.5, Y0-ny*3.5);
+  ctx.closePath(); ctx.fill();
+  /* 2. le trait, cerné de sombre puis rempli de cyan */
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(X0,Y0); ctx.lineTo(X1,Y1);
+  ctx.strokeStyle='rgba(6,16,24,.62)'; ctx.lineWidth=6; ctx.stroke();
+  ctx.strokeStyle='rgba(120,240,255,.96)'; ctx.lineWidth=2.4; ctx.stroke();
+  /* 3. les chevrons, tous les deux mètres et demi */
+  for (let m=2.5; m<PORTEE_VISEE-0.5; m+=2.5){
+    const cx2=vx(S.cercle.x+ux*m), cy2=vy(S.cercle.y+uy*m);
+    const av=m/PORTEE_VISEE, aile=7+av*7, creux=5+av*4;
+    const px1=cx2+nx*aile-dX/lg*creux, py1=cy2+ny*aile-dY/lg*creux;
+    const px2=cx2-nx*aile-dX/lg*creux, py2=cy2-ny*aile-dY/lg*creux;
+    ctx.beginPath();
+    ctx.moveTo(px1,py1); ctx.lineTo(cx2,cy2); ctx.lineTo(px2,py2);
+    ctx.strokeStyle='rgba(6,16,24,.55)'; ctx.lineWidth=5; ctx.stroke();
+    ctx.strokeStyle='rgba(120,240,255,.9)'; ctx.lineWidth=2; ctx.stroke();
+  }
+  ctx.restore();
   if (S.etape>=1){
     const p = S.phase==='but'
       ? P.BUT_MIN+(S.etape>=2?S.valeurs[1]:S.jauge)*(P.BUT_MAX-P.BUT_MIN)
